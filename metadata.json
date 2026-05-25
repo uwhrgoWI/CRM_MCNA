@@ -1,0 +1,6 @@
+{
+  "name": "Enterprise CRM Pro",
+  "description": "Hệ thống Quản trị Quan hệ Khách hàng (CRM) phân quyền chuyên sâu đa vai trò (Admin, Manager, Rep, Support) tối ưu hóa kinh doanh B2B.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
