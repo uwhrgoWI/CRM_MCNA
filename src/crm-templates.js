@@ -35,7 +35,7 @@ export function drawLoginScreen() {
         <div class="auth-brand">
           <div class="logo-w" style="justify-content: center; margin-bottom: 8px;">
             <div class="logo-ico"><i class="fa-solid fa-fire text-white"></i></div>
-            <span class="brand-title">AURA CRM PRO</span>
+            <span class="brand-title">MCNA CRM VN</span>
           </div>
           <p class="brand-tagline">Hệ thống Trợ lý Kinh doanh & Chăm sóc Khách hàng</p>
         </div>
@@ -75,7 +75,7 @@ export function drawLoginScreen() {
           <p class="switcher-title" style="margin-bottom:6px;"><i class="fa-solid fa-bolt text-amber-500"></i> Đăng nhập nhanh vai trò Demo:</p>
           <div class="demo-btns-grid">
             <button class="demo-btn" data-email="superadmin@crm.vn" data-pw="Admin@123" style="border-left: 3px solid var(--red); color:var(--red);">👑 Admin</button>
-            <button class="demo-btn" data-email="manager@crm.vn" data-pw="Manager@123" style="border-left: 3px solid var(--p600); color:var(--p600);">📊 Manager</button>
+            <button class="demo-btn" data-email="manager@crm.vn" data-pw="Manager@123" style="border-left: 3px solid var(--p600); color:var(--p600);">📊 Marketers</button>
             <button class="demo-btn" data-email="sales@crm.vn" data-pw="Sales@123" style="border-left: 3px solid var(--b600); color:var(--b600);">💼 Sales Rep</button>
             <button class="demo-btn" data-email="support@crm.vn" data-pw="Support@123" style="border-left: 3px solid var(--teal); color:var(--teal);">🎧 Support</button>
           </div>
@@ -251,9 +251,119 @@ export function drawForgotScreen() {
    2. SHARED COMPONENTS (Sidebar, Topbar & Navigation Renders)
    ========================================================================== */
 
+export function renderUnifiedPipelineHeader(currentStep) {
+  // Compute metrics dynamically from the active databases
+  const leadsCount = LEADS_DB.length;
+  const dealsCount = DEALS_DB.filter(d => d.stage !== 'closed_won' && d.stage !== 'closed_lost').length;
+  const quotesCount = QUOTES_DB.length;
+  const invoicesCount = INVOICES_DB.filter(i => i.status === 'pending').length;
+  const tasksCount = TASKS_DB.filter(t => !t.completed).length + TICKETS_DB.filter(tk => tk.status === 'open' || tk.status === 'pending').length;
+
+  const steps = [
+    { id: 'leads', pageId: 'leads', label: '1. Tiếp Nhận Leads', desc: 'Định Tuyến & Gán SĐT [T1-T2]', count: leadsCount, icon: 'fa-filter', color: '#6366f1' },
+    { id: 'deals', pageId: 'pipeline', label: '2. Đàm Phán Deals', desc: 'Pipeline Sơ Đồ Kanban [T3]', count: dealsCount, icon: 'fa-comments-dollar', color: '#0ea5e9' },
+    { id: 'quotes', pageId: 'quotes', label: '3. Đăng Ký Báo Giá', desc: 'Bản Đề Xuất Giải Pháp', count: quotesCount, icon: 'fa-file-invoice-dollar', color: '#f59e0b' },
+    { id: 'invoices', pageId: 'invoices', label: '4. Kết Toán Hóa Đơn', desc: 'Có Đối Soát Webhook [T4]', count: invoicesCount, icon: 'fa-file-invoice', color: '#10b981' },
+    { id: 'tasks', pageId: 'tasks', label: '5. Vận Hành & SLA', desc: 'Triển Khai & Chăm Sóc [T5]', count: tasksCount, icon: 'fa-list-check', color: '#ec4899' }
+  ];
+
+  let stepsHtml = '';
+  steps.forEach((st, idx) => {
+    const isActive = st.id === currentStep;
+    const borderStyle = isActive 
+      ? `border-top: 4px solid ${st.color}; background: #f8fafc; border-bottom: 2px solid ${st.color}; font-weight: bold;` 
+      : `border-top: 4px solid #e2e8f0; background: #ffffff;`;
+    
+    const tagBg = isActive ? st.color : '#e2e8f0';
+    const tagFg = isActive ? '#ffffff' : '#475569';
+    const countBadge = `<span style="background:${tagBg}; color:${tagFg}; border-radius:12px; padding:2px 8px; font-size:10.5px; font-weight:800; font-family:var(--fm);">${st.count}</span>`;
+
+    stepsHtml += `
+      <div class="flow-step-col ${isActive ? 'active' : ''}" 
+           onclick="window.crmApp.go('${st.pageId}')" 
+           style="flex: 1; min-width: 175px; padding: 12px; cursor: pointer; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.05); transition: all 0.2s; ${borderStyle}; border-left: 1px solid #e2e8f0; border-right: 1px solid #e2e8f0;"
+           onmouseover="this.style.transform='translateY(-2px)'; this.style.boxShadow='0 4px 8px rgba(0,0,0,0.08)'"
+           onmouseout="this.style.transform='translateY(0)'; this.style.boxShadow='0 1px 3px rgba(0,0,0,0.05)'">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <div style="display:flex; align-items:center; gap:6px;">
+            <span style="color:${st.color}; font-size:14px;"><i class="fa-solid ${st.icon}"></i></span>
+            <span style="font-weight:800; font-size:11.5px; color:${isActive ? 'var(--n900)' : 'var(--n700)'};">${st.label}</span>
+          </div>
+          ${countBadge}
+        </div>
+        <p style="font-size:10px; color:var(--n500); margin:6px 0 0 0; line-height:1.2; font-weight:500;">${st.desc}</p>
+      </div>
+    `;
+
+    if (idx < steps.length - 1) {
+      stepsHtml += `
+        <div style="display:flex; align-items:center; justify-content:center; color:var(--n300); padding:0 4px;" class="flow-arrow-sep">
+          <i class="fa-solid fa-chevron-right" style="font-size: 13px;"></i>
+        </div>
+      `;
+    }
+  });
+
+  return `
+    <div class="unified-flow-header panel animate-fadeIn" style="padding:12px 18px; margin-bottom:16px; background:#ffffff; border-radius:10px; box-shadow:0 1px 3px rgba(0,0,0,0.04); border-left: 4px solid #4f46e5;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px; border-bottom:1px solid #f1f5f9; padding-bottom:8px;">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <span style="background:linear-gradient(135deg, #4f46e5, #818cf8); color:white; width:22px; height:22px; display:inline-flex; align-items:center; justify-content:center; border-radius:50%; font-size:11px;">
+            <i class="fa-solid fa-arrow-right-to-bracket animate-pulse"></i>
+          </span>
+          <span style="font-size:12.5px; font-weight:800; color:var(--n800); text-transform:uppercase; letter-spacing:0.5px;">Tiến Trình Kinh Doanh MCNA Unified Pipeline Flow</span>
+        </div>
+        <div style="font-size:10px; font-weight:800; color:#4f46e5; background:#e0e7ff; padding:3px 10px; border-radius:12px; text-transform: uppercase; letter-spacing: 0.5px;">
+          <i class="fa-solid fa-cloud-bolt text-indigo-500"></i> Đồng bộ dòng dữ liệu thời gian thực
+        </div>
+      </div>
+      <div style="display:flex; gap:8px; overflow-x:auto; padding-bottom:4px;" class="flow-steps-row">
+        ${stepsHtml}
+      </div>
+    </div>
+  `;
+}
+
 export function buildSidebar(session, activePage, isCollapsed) {
   const role = session.role;
   let navHtml = '';
+
+  // Unified business flow section included for all roles
+  const flowSecHtml = `
+    <div class="nav-sec">
+      <p class="nav-sec-label" style="display:flex; align-items:center; gap:5px; color:#4f46e5; font-weight:800; font-size:10.5px; letter-spacing:0.5px; text-transform:uppercase;"><i class="fa-solid fa-route animate-pulse"></i> Quy Trình Kinh Doanh 5 Bước</p>
+      <div class="ni ${activePage === 'leads' ? 'active' : ''}" data-page="leads">
+        <span class="ni-ic" style="color:#6366f1;"><i class="fa-solid fa-filter"></i></span>
+        <span class="ni-txt">1. Tiếp Nhận Leads</span>
+        <span class="ni-bd r" style="background:#6366f1; font-size:9.5px; font-weight:bold;">${LEADS_DB.length}</span>
+      </div>
+      <div class="ni ${activePage === 'deals' || activePage === 'pipeline' ? 'active' : ''}" data-page="pipeline">
+        <span class="ni-ic" style="color:#0ea5e9;"><i class="fa-solid fa-comments-dollar"></i></span>
+        <span class="ni-txt">2. Đàm Phán Deals</span>
+        <span class="ni-bd r" style="background:#0ea5e9; font-size:9.5px; font-weight:bold;">${DEALS_DB.filter(d => d.stage !== 'closed_won' && d.stage !== 'closed_lost').length}</span>
+      </div>
+      <div class="ni ${activePage === 'quotes' ? 'active' : ''}" data-page="quotes">
+        <span class="ni-ic" style="color:#f59e0b;"><i class="fa-solid fa-file-invoice-dollar"></i></span>
+        <span class="ni-txt">3. Đăng Ký Báo Giá</span>
+        <span class="ni-bd r" style="background:#f59e0b; font-size:9.5px; font-weight:bold;">${QUOTES_DB.length}</span>
+      </div>
+      <div class="ni ${activePage === 'invoices' ? 'active' : ''}" data-page="invoices">
+        <span class="ni-ic" style="color:#10b981;"><i class="fa-solid fa-file-invoice"></i></span>
+        <span class="ni-txt">4. Sổ Sách Hóa Đơn</span>
+        <span class="ni-bd r" style="background:#10b981; font-size:9.5px; font-weight:bold;">${INVOICES_DB.filter(inv => inv.status === 'pending').length}</span>
+      </div>
+      <div class="ni ${activePage === 'tasks' ? 'active' : ''}" data-page="tasks">
+        <span class="ni-ic" style="color:#ec4899;"><i class="fa-solid fa-list-check"></i></span>
+        <span class="ni-txt">5. Vận Hành Tác Vụ</span>
+        <span class="ni-bd r" style="background:#ec4899; font-size:9.5px; font-weight:bold;">${TASKS_DB.filter(t => !t.completed).length}</span>
+      </div>
+      <div class="ni ${activePage === 'tickets' ? 'active' : ''}" data-page="tickets">
+        <span class="ni-ic" style="color:#14b8a6;"><i class="fa-solid fa-headset"></i></span>
+        <span class="ni-txt">SLA Tickets Hỗ Trợ</span>
+        <span class="ni-bd r" style="background:#14b8a6; font-size:9.5px; font-weight:bold;">${TICKETS_DB.filter(t => t.status === 'open').length}</span>
+      </div>
+    </div>
+  `;
 
   // Super Admin Sidebar Navigation
   if (role === 'superadmin') {
@@ -264,48 +374,32 @@ export function buildSidebar(session, activePage, isCollapsed) {
           <span class="ni-ic"><i class="fa-solid fa-chart-line"></i></span>
           <span class="ni-txt">Bảng Điều Khiển</span>
         </div>
+        <div class="ni ${activePage === 'mcna-funnel' ? 'active' : ''}" data-page="mcna-funnel">
+          <span class="ni-ic"><i class="fa-solid fa-diagram-project text-purple-500"></i></span>
+          <span class="ni-txt font-semibold" style="color: #6366f1;">Phễu 5 Tầng MCNA</span>
+          <span class="ni-bd r" style="background:var(--p500); font-size:9px; padding:1px 3px;">LIVE Sim</span>
+        </div>
         <div class="ni ${activePage === 'reports' ? 'active' : ''}" data-page="reports">
           <span class="ni-ic"><i class="fa-solid fa-paste"></i></span>
           <span class="ni-txt">Báo Cáo & Phân Tích</span>
         </div>
       </div>
+      
+      ${flowSecHtml}
+      
       <div class="nav-sec">
-        <p class="nav-sec-label">Kinh doanh Core</p>
-        <div class="ni ${activePage === 'leads' ? 'active' : ''}" data-page="leads">
-          <span class="ni-ic"><i class="fa-solid fa-filter"></i></span>
-          <span class="ni-txt">Quản Lý Leads</span>
-          <span class="ni-bd r" style="font-size:9px;">${LEADS_DB.length}</span>
-        </div>
-        <div class="ni ${activePage === 'deals' ? 'active' : ''}" data-page="deals">
-          <span class="ni-ic"><i class="fa-solid fa-comments-dollar"></i></span>
-          <span class="ni-txt">Cơ Hội & Pipeline</span>
-        </div>
+        <p class="nav-sec-label">Dữ liệu & Bổ trợ</p>
         <div class="ni ${activePage === 'contacts' ? 'active' : ''}" data-page="contacts">
           <span class="ni-ic"><i class="fa-solid fa-user-group"></i></span>
           <span class="ni-txt font-semibold">Khách Hàng (B2B/B2C)</span>
         </div>
         <div class="ni ${activePage === 'products' ? 'active' : ''}" data-page="products">
           <span class="ni-ic"><i class="fa-solid fa-boxes-stacked"></i></span>
-          <span class="ni-txt">Danh Mục Sản Phẩm</span>
+          <span class="ni-txt">Mã Hàng Sản Phẩm</span>
         </div>
-      </div>
-      <div class="nav-sec">
-        <p class="nav-sec-label">Tài chính & Quy trình</p>
-        <div class="ni ${activePage === 'quotes' ? 'active' : ''}" data-page="quotes">
-          <span class="ni-ic"><i class="fa-solid fa-file-invoice-dollar"></i></span>
-          <span class="ni-txt">Bảng Báo Giá</span>
-        </div>
-        <div class="ni ${activePage === 'invoices' ? 'active' : ''}" data-page="invoices">
-          <span class="ni-ic"><i class="fa-solid fa-file-invoice"></i></span>
-          <span class="ni-txt">Hóa Đơn & Dự Nợ</span>
-        </div>
-        <div class="ni ${activePage === 'tasks' ? 'active' : ''}" data-page="tasks">
-          <span class="ni-ic"><i class="fa-solid fa-list-check"></i></span>
-          <span class="ni-txt">Nhiệm Vụ & Nhật Ký</span>
-        </div>
-        <div class="ni ${activePage === 'tickets' ? 'active' : ''}" data-page="tickets">
-          <span class="ni-ic"><i class="fa-solid fa-headset"></i></span>
-          <span class="ni-txt">Hỗ Trợ & SLA Ticketing</span>
+        <div class="ni ${activePage === 'sales-toolkit' ? 'active' : ''}" data-page="sales-toolkit">
+          <span class="ni-ic"><i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i></span>
+          <span class="ni-txt" style="font-weight:700;">Hộp Công Cụ Sales</span>
         </div>
       </div>
       <div class="nav-sec">
@@ -325,44 +419,33 @@ export function buildSidebar(session, activePage, isCollapsed) {
   else if (role === 'manager') {
     navHtml = `
       <div class="nav-sec">
-        <p class="nav-sec-label">Giám Sát Bán Hàng</p>
+        <p class="nav-sec-label font-bold text-violet-700">Khối Phòng Ban Marketing</p>
         <div class="ni ${activePage === 'dashboard-manager' ? 'active' : ''}" data-page="dashboard-manager">
           <span class="ni-ic"><i class="fa-solid fa-square-poll-vertical"></i></span>
-          <span class="ni-txt">Dashboard Quản Lý</span>
+          <span class="ni-txt">Dashboard Marketers</span>
+        </div>
+        <div class="ni ${activePage === 'mcna-funnel' ? 'active' : ''}" data-page="mcna-funnel">
+          <span class="ni-ic"><i class="fa-solid fa-diagram-project text-purple-500"></i></span>
+          <span class="ni-txt font-semibold" style="color: #6366f1;">Phễu 5 Tầng MCNA</span>
+          <span class="ni-bd r" style="background:var(--p500); font-size:9px; padding:1px 3px;">LIVE Sim</span>
         </div>
         <div class="ni ${activePage === 'reports' ? 'active' : ''}" data-page="reports">
           <span class="ni-ic"><i class="fa-solid fa-paste"></i></span>
           <span class="ni-txt">Báo Cáo & Dự Báo</span>
         </div>
       </div>
+      
+      ${flowSecHtml}
+      
       <div class="nav-sec">
-        <p class="nav-sec-label">Quản lý Phân bổ</p>
-        <div class="ni ${activePage === 'leads' ? 'active' : ''}" data-page="leads">
-          <span class="ni-ic"><i class="fa-solid fa-filter"></i></span>
-          <span class="ni-txt">Xem Leads Doanh Nghiệp</span>
-        </div>
-        <div class="ni ${activePage === 'deals' ? 'active' : ''}" data-page="deals">
-          <span class="ni-ic"><i class="fa-solid fa-comments-dollar"></i></span>
-          <span class="ni-txt">Cơ Hội & Pipeline</span>
-        </div>
+        <p class="nav-sec-label">Dữ liệu & Bổ trợ</p>
         <div class="ni ${activePage === 'contacts' ? 'active' : ''}" data-page="contacts">
           <span class="ni-ic"><i class="fa-solid fa-user-group"></i></span>
           <span class="ni-txt font-semibold">Khách Hàng (B2B/B2C)</span>
         </div>
-      </div>
-      <div class="nav-sec">
-        <p class="nav-sec-label">Sách biểu & Doanh thu</p>
-        <div class="ni ${activePage === 'quotes' ? 'active' : ''}" data-page="quotes">
-          <span class="ni-ic"><i class="fa-solid fa-file-invoice-dollar"></i></span>
-          <span class="ni-txt">Phê Duyệt Báo Giá</span>
-        </div>
-        <div class="ni ${activePage === 'invoices' ? 'active' : ''}" data-page="invoices">
-          <span class="ni-ic"><i class="fa-solid fa-file-invoice"></i></span>
-          <span class="ni-txt">Dòng Tiền & Thu Nợ</span>
-        </div>
-        <div class="ni ${activePage === 'tasks' ? 'active' : ''}" data-page="tasks">
-          <span class="ni-ic"><i class="fa-solid fa-list-check"></i></span>
-          <span class="ni-txt">Nhiệm Vụ & Nhật Ký</span>
+        <div class="ni ${activePage === 'sales-toolkit' ? 'active' : ''}" data-page="sales-toolkit">
+          <span class="ni-ic"><i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i></span>
+          <span class="ni-txt" style="font-weight:700;">Hộp Công Cụ Sales</span>
         </div>
       </div>
     `;
@@ -376,32 +459,28 @@ export function buildSidebar(session, activePage, isCollapsed) {
           <span class="ni-ic"><i class="fa-solid fa-user-tie"></i></span>
           <span class="ni-txt">Dashboard Cá Nhân</span>
         </div>
+        <div class="ni ${activePage === 'mcna-funnel' ? 'active' : ''}" data-page="mcna-funnel">
+          <span class="ni-ic"><i class="fa-solid fa-diagram-project text-purple-500"></i></span>
+          <span class="ni-txt font-semibold" style="color: #6366f1;">Phễu 5 Tầng MCNA</span>
+          <span class="ni-bd r" style="background:var(--p500); font-size:9px; padding:1px 3px;">LIVE Sim</span>
+        </div>
       </div>
+      
+      ${flowSecHtml}
+      
       <div class="nav-sec">
-        <p class="nav-sec-label">Hồ Sơ Của Tôi</p>
-        <div class="ni ${activePage === 'leads' ? 'active' : ''}" data-page="leads">
-          <span class="ni-ic"><i class="fa-solid fa-filter"></i></span>
-          <span class="ni-txt">Leads được bàn giao</span>
-        </div>
-        <div class="ni ${activePage === 'deals' ? 'active' : ''}" data-page="deals">
-          <span class="ni-ic"><i class="fa-solid fa-comments-dollar"></i></span>
-          <span class="ni-txt">Cơ Hội & Pipeline</span>
-        </div>
+        <p class="nav-sec-label">Dữ liệu & Bổ trợ</p>
         <div class="ni ${activePage === 'contacts' ? 'active' : ''}" data-page="contacts">
           <span class="ni-ic"><i class="fa-solid fa-user-group"></i></span>
           <span class="ni-txt font-semibold">Khách Hàng (B2B/B2C)</span>
         </div>
         <div class="ni ${activePage === 'products' ? 'active' : ''}" data-page="products">
           <span class="ni-ic"><i class="fa-solid fa-boxes-stacked"></i></span>
-          <span class="ni-txt">Danh Mục Sản Phẩm</span>
+          <span class="ni-txt">Mã Hàng Sản Phẩm</span>
         </div>
-        <div class="ni ${activePage === 'quotes' ? 'active' : ''}" data-page="quotes">
-          <span class="ni-ic"><i class="fa-solid fa-file-invoice-dollar"></i></span>
-          <span class="ni-txt">Khởi Tạo Báo Giá</span>
-        </div>
-        <div class="ni ${activePage === 'tasks' ? 'active' : ''}" data-page="tasks">
-          <span class="ni-ic"><i class="fa-solid fa-list-check"></i></span>
-          <span class="ni-txt">Nhiệm Vụ & Nhật Ký</span>
+        <div class="ni ${activePage === 'sales-toolkit' ? 'active' : ''}" data-page="sales-toolkit">
+          <span class="ni-ic"><i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i></span>
+          <span class="ni-txt" style="font-weight:700;">Hộp Công Cụ Sales</span>
         </div>
       </div>
     `;
@@ -415,11 +494,17 @@ export function buildSidebar(session, activePage, isCollapsed) {
           <span class="ni-ic"><i class="fa-solid fa-headset"></i></span>
           <span class="ni-txt">Support Dashboard</span>
         </div>
-        <div class="ni ${activePage === 'tickets' ? 'active' : ''}" data-page="tickets">
-          <span class="ni-ic"><i class="fa-solid fa-ticket"></i></span>
-          <span class="ni-txt">Danh Sách Tickets</span>
-          <span class="ni-bd r">${TICKETS_DB.filter(t=>t.status==='open').length}</span>
+        <div class="ni ${activePage === 'mcna-funnel' ? 'active' : ''}" data-page="mcna-funnel">
+          <span class="ni-ic"><i class="fa-solid fa-diagram-project text-purple-500"></i></span>
+          <span class="ni-txt font-semibold" style="color: #6366f1;">Phễu 5 Tầng MCNA</span>
+          <span class="ni-bd r" style="background:var(--p500); font-size:9px; padding:1px 3px;">LIVE Sim</span>
         </div>
+      </div>
+      
+      ${flowSecHtml}
+      
+      <div class="nav-sec">
+        <p class="nav-sec-label">Dữ liệu</p>
         <div class="ni ${activePage === 'contacts' ? 'active' : ''}" data-page="contacts">
           <span class="ni-ic"><i class="fa-solid fa-user-group"></i></span>
           <span class="ni-txt font-semibold">Khách Hàng (B2B/B2C)</span>
@@ -441,7 +526,7 @@ export function buildSidebar(session, activePage, isCollapsed) {
   const sbClass = isCollapsed ? 'sb collapsed' : 'sb';
   const roleBadgeMap = {
     superadmin: '<span class="role-badge sa">ADMIN</span>',
-    manager: '<span class="role-badge m">MANAGER</span>',
+    manager: '<span class="role-badge m" style="background:#7c3aed; color:white; padding:2px 6px; border-radius:4px; font-size:9.5px; font-weight:bold;">MARKETERS</span>',
     sales: '<span class="role-badge sr">REP</span>',
     support: '<span class="role-badge su">SUPPORT</span>'
   };
@@ -451,7 +536,7 @@ export function buildSidebar(session, activePage, isCollapsed) {
       <div class="sb-header">
         <div class="logo-w">
           <div class="logo-ico"><i class="fa-solid fa-fire text-white"></i></div>
-          <span class="brand-title" style="font-size: 16px;">AURA CRM PRO</span>
+          <span class="brand-title" style="font-size: 16px;">MCNA CRM VN</span>
         </div>
         <button class="collapse-btn" id="sidebar-toggle-trigger" aria-label="Collapse Menu">
           <i class="fa-solid ${isCollapsed ? 'fa-chevron-right' : 'fa-chevron-left'}"></i>
@@ -747,6 +832,22 @@ export function renderManagerDashboard() {
           </div>
         </div>
       </div>
+
+      <!-- Bản đồ Tiến trình Kinh doanh 5 Giai đoạn tích hợp -->
+      <div style="margin-top: 24px;">
+        <div style="background-color: white; border-radius: var(--r); border: 1px solid var(--bd); padding: 20px; box-shadow: var(--sh);">
+          <div style="border-bottom: 2px solid #818cf8; padding-bottom: 10px; margin-bottom: 16px;">
+            <h3 style="font-family: var(--fd); font-size: 16px; font-weight: 800; color: #4338ca; display: flex; align-items: center; gap: 8px; margin: 0;">
+              <i class="fa-solid fa-route animate-pulse"></i> KHÔNG GIAN BẢN ĐỒ TIẾN TRÌNH KINH DOANH 5 BƯỚC (UNIFIED PIPELINE)
+            </h3>
+            <p style="font-size: 12px; color: var(--n500); margin-top: 4px; margin-bottom: 0;">
+              Hội tụ đầy đủ thông tin xuyên suốt từ giai đoạn tiếp nhận Leads mới đến đàm phán hợp đồng, thanh quyết toán hóa đơn nợ dòng tiền và vận hành SLA Tickets xử lý sự vụ.
+            </p>
+          </div>
+          ${renderUnifiedSalesPipeline()}
+        </div>
+      </div>
+
     </div>
   `;
 }
@@ -813,16 +914,39 @@ export function renderSalesRepDashboard() {
         <div class="panel">
           <h3 style="font-family:var(--fd); font-size:14px; font-weight:700; margin-bottom:12px;"><i class="fa-solid fa-user-clock text-indigo-500"></i> Lịch hẹn làm việc sắp diễn ra</h3>
           <div style="display:flex; flex-direction:column; gap:12px;">
-            ${ACTIVITIES_DB.filter(a=>a.type==='meeting').slice(0, 3).map(meet => `
-              <div style="padding:10px; border-radius:var(--rs); background-color:var(--n50); border:1px solid var(--bd); font-size:12px;">
-                <p style="font-weight:700; color:var(--n800);"><i class="fa-solid fa-users"></i> ${esc(meet.title)}</p>
-                <p style="color:var(--n500); margin-top:2px;">Thời điểm: <span class="tmono">${meet.datetime}</span></p>
-                <p style="font-size:10px; color:var(--n400); margin-top:2px;">Ghi chú: ${esc(meet.outcome)}</p>
-              </div>
-            `).join('')}
+            ${ACTIVITIES_DB.filter(a=>a.type==='meeting').slice(0, 3).map(meet => {
+              const quizCompleted = window.PREMEETING_QUIZ_COMPLETED && window.PREMEETING_QUIZ_COMPLETED[meet.id];
+              return `
+                <div style="padding:10px; border-radius:var(--rs); background-color:var(--n50); border:1px solid var(--bd); font-size:12px; display:flex; flex-direction:column; gap:4px;">
+                  <div style="display:flex; justify-content:space-between; align-items:start; gap:8px;">
+                    <p style="font-weight:700; color:var(--n800);"><i class="fa-solid fa-users"></i> ${esc(meet.title)}</p>
+                    ${quizCompleted ? `<span class="chip gr" style="font-size:9px; font-weight:700; white-space:nowrap;"><i class="fa-solid fa-trophy"></i> Ready: ${quizCompleted.score}/100</span>` : `<span class="chip rd" style="font-size:9px; font-weight:700; white-space:nowrap;"><i class="fa-solid fa-triangle-exclamation"></i> Quiz Chưa Làm</span>`}
+                  </div>
+                  <p style="color:var(--n500);">Thời điểm: <span class="tmono">${meet.datetime}</span></p>
+                  <p style="font-size:10px; color:var(--n400);">Ghi chú: ${esc(meet.outcome)}</p>
+                  <button class="btn pr xs font-bold" onclick="window.crmApp.openPreMeetingQuizModal('${meet.id}')" style="margin-top:6px; padding:3px 8px; font-size:10px; align-self:start;"><i class="fa-solid fa-circle-question"></i> Trả lời Quiz Chuẩn bị (Pre-Meeting Quiz)</button>
+                </div>
+              `;
+            }).join('')}
           </div>
         </div>
       </div>
+
+      <!-- Bản đồ Tiến trình Kinh doanh 5 Giai đoạn tích hợp -->
+      <div style="margin-top: 24px; grid-column: span 2;">
+        <div style="background-color: white; border-radius: var(--r); border: 1px solid var(--bd); padding: 20px; box-shadow: var(--sh);">
+          <div style="border-bottom: 2px solid #818cf8; padding-bottom: 10px; margin-bottom: 16px;">
+            <h3 style="font-family: var(--fd); font-size: 16px; font-weight: 800; color: #4338ca; display: flex; align-items: center; gap: 8px; margin: 0;">
+              <i class="fa-solid fa-route animate-pulse"></i> SƠ ĐỒ TIẾN TRÌNH KINH DOANH CÁ NHÂN (UNIFIED 5-STAGE KANBAN)
+            </h3>
+            <p style="font-size: 12px; color: var(--n500); margin-top: 4px; margin-bottom: 0;">
+              Quản lý tiến trình dịch chuyển, liên kết Leads và Deals thông suốt của khách hàng từ tiếp cận đến thanh toán thanh quyết toán nợ và xử lý vận hành.
+            </p>
+          </div>
+          ${renderUnifiedSalesPipeline()}
+        </div>
+      </div>
+
     </div>
   `;
 }
@@ -897,8 +1021,25 @@ export function renderSupportDashboard() {
    ========================================================================== */
 
 export function drawLeadsPage(leadsList, activeTab, filterState) {
+  // First, apply activeTab filter
+  const stateFilteredList = activeTab === 'all' ? leadsList : leadsList.filter(l => l.status === activeTab);
+
   return `
     <div class="page-container animate-fadeIn">
+      ${renderUnifiedPipelineHeader('leads')}
+      <!-- B2B & B2C Segregation Header Row -->
+      <div class="panel" style="padding: 12px 18px; margin-bottom: 12px; border-left: 4px solid var(--p500); display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+        <div>
+          <h2 style="font-family:var(--fd); font-size:16px; font-weight:800; color:var(--n800); margin:0;"><i class="fa-solid fa-people-arrows text-indigo-500"></i> MCNA CRM VN - Phân Hệ Chăm Sóc & Tiếp Cận Lead</h2>
+          <p style="font-size:11.5px; color:var(--n500); margin-top:2px;">Quản trị phễu tiếp cận riêng biệt: Doanh nghiệp (B2B) và Đại chúng (B2C) với chế độ bảo mật thông tin tối đa.</p>
+        </div>
+        <div style="display:flex; gap:6px; background:var(--n50); border:1px solid var(--bd); padding:4px; border-radius:var(--rs);">
+          <button class="btn ${(!filterState.leadType || filterState.leadType === 'all') ? 'pr' : 'bl'} xs" onclick="window.crmApp.changeLeadTypeFilter('all')" style="font-weight:700; padding:4px 8px; font-size:11px;"><i class="fa-solid fa-layer-group"></i> Tất cả (${leadsList.length})</button>
+          <button class="btn ${filterState.leadType === 'b2b' ? 'pr' : 'bl'} xs" onclick="window.crmApp.changeLeadTypeFilter('b2b')" style="font-weight:700; padding:4px 8px; font-size:11px;"><i class="fa-solid fa-building"></i> B2B Doanh Nghiệp (${leadsList.filter(l=>l.leadType==='b2b').length})</button>
+          <button class="btn ${filterState.leadType === 'b2c' ? 'pr' : 'bl'} xs" onclick="window.crmApp.changeLeadTypeFilter('b2c')" style="font-weight:700; padding:4px 8px; font-size:11px;"><i class="fa-solid fa-user-tag"></i> B2C Cá Nhân (${leadsList.filter(l=>l.leadType==='b2c').length})</button>
+        </div>
+      </div>
+
       <!-- Toolbar controls filtering -->
       <div class="filter-bar">
         <div class="search-box-md">
@@ -923,16 +1064,16 @@ export function drawLeadsPage(leadsList, activeTab, filterState) {
 
       <!-- Tabbing filters -->
       <div class="tabbar">
-        <div class="tab ${activeTab==='all'?'active':''}" data-tab="all">Tất cả (${leadsList.length})</div>
-        <div class="tab ${activeTab==='new'?'active':''}" data-tab="new">Mới (${leadsList.filter(l=>l.status==='new').length})</div>
-        <div class="tab ${activeTab==='contacting'?'active':''}" data-tab="contacting">Đang xử lý (${leadsList.filter(l=>l.status==='contacting').length})</div>
-        <div class="tab ${activeTab==='qualified'?'active':''}" data-tab="qualified">Đã Qualify (${leadsList.filter(l=>l.status==='qualified').length})</div>
-        <div class="tab ${activeTab==='lost'?'active':''}" data-tab="lost">Mất Lead (${leadsList.filter(l=>l.status==='lost').length})</div>
+        <div class="tab ${activeTab==='all'?'active':''}" data-tab="all">Tất cả trạng thái (${stateFilteredList.length})</div>
+        <div class="tab ${activeTab==='new'?'active':''}" data-tab="new">Mới (${stateFilteredList.filter(l=>l.status==='new').length})</div>
+        <div class="tab ${activeTab==='contacting'?'active':''}" data-tab="contacting">Đang xử lý (${stateFilteredList.filter(l=>l.status==='contacting').length})</div>
+        <div class="tab ${activeTab==='qualified'?'active':''}" data-tab="qualified">Đã Qualify (${stateFilteredList.filter(l=>l.status==='qualified').length})</div>
+        <div class="tab ${activeTab==='lost'?'active':''}" data-tab="lost">Mất Lead (${stateFilteredList.filter(l=>l.status==='lost').length})</div>
       </div>
 
       <!-- Leads dynamic table -->
       <div class="panel" style="padding:0; overflow-x:auto;">
-        ${leadsList.length === 0 ? `
+        ${stateFilteredList.length === 0 ? `
           <div class="empty">
             <div class="empty-ico"><i class="fa-solid fa-user-minus"></i></div>
             <p class="empty-msg">Không tìm thấy bản ghi Leads nào</p>
@@ -943,25 +1084,102 @@ export function drawLeadsPage(leadsList, activeTab, filterState) {
             <thead>
               <tr>
                 <th># ID</th>
+                <th>Phân Loại</th>
                 <th>Họ Tên Lead</th>
-                <th>Công Ty</th>
+                <th>Mô Hình / Doanh Nghiệp</th>
+                <th style="min-width:180px;">Kênh Tiếp Cận Khả Dụng</th>
                 <th>Nguồn tiếp cận</th>
                 <th>Thứ tự ưu tiên</th>
-                <th style="text-align:right;">Giá trị ước lượng</th>
-                <th>Người đại diện phụ trách</th>
-                <th style="text-align:center;">Thao tác</th>
+                <th style="text-align:right;">Giá trị dự tính</th>
+                <th>Người phụ trách</th>
+                <th style="text-align:center; min-width: 140px;">Thao tác</th>
               </tr>
             </thead>
             <tbody>
-              ${leadsList.map(led => {
+              ${stateFilteredList.map(led => {
                 const priorityBadge = led.priority === 'hot' ? 'chip rd' : led.priority === 'warm' ? 'chip am' : 'chip gy';
                 const owner = USERS_DB.find(u => u.id === led.ownerId);
+                const isB2C = led.leadType === 'b2c';
+
+                // Display privacy restrictions for B2C leads - either Email or Phone, never both
+                let contactDisplayHtml = '';
+                if (isB2C) {
+                  const showPhone = (led.id.charCodeAt(led.id.length - 1) % 2 === 0);
+                  if (showPhone) {
+                    contactDisplayHtml = `
+                      <div style="font-family:var(--fm); line-height: 1.3;">
+                        <span class="text-emerald-700 font-bold" style="font-size:11.5px; background: rgba(16,185,129,0.1); padding:2px 5px; border-radius:4px;"><i class="fa-solid fa-phone"></i> ${led.phone}</span>
+                        <div style="font-size:9.5px; color:var(--n400); margin-top:3px;">
+                          <i class="fa-solid fa-shield-halved text-rose-500" title="Bảo mật B2C"></i> Email: <em>[🔒 Ẩn danh bảo mật]</em>
+                        </div>
+                      </div>
+                    `;
+                  } else {
+                    contactDisplayHtml = `
+                      <div style="font-family:var(--fm); line-height: 1.3;">
+                        <span class="text-indigo-700 font-bold" style="font-size:11.5px; background: rgba(99,102,241,0.1); padding:2px 5px; border-radius:4px;"><i class="fa-solid fa-envelope"></i> ${esc(led.email)}</span>
+                        <div style="font-size:9.5px; color:var(--n400); margin-top:3px;">
+                          <i class="fa-solid fa-shield-halved text-rose-500" title="Bảo mật B2C"></i> SĐT: <em>[🔒 Ẩn danh bảo mật]</em>
+                        </div>
+                      </div>
+                    `;
+                  }
+                } else {
+                  contactDisplayHtml = `
+                    <div style="font-family:var(--fm); line-height: 1.3; font-size:11px; color:var(--n600);">
+                      <div><i class="fa-solid fa-phone" style="width:12px;"></i> ${led.phone}</div>
+                      <div style="margin-top:2px;"><i class="fa-solid fa-envelope" style="width:12px;"></i> ${esc(led.email)}</div>
+                    </div>
+                  `;
+                }
+
                 return `
                   <tr>
                     <td class="tmono">${led.id}</td>
-                    <td><span class="cell-bold">${esc(led.name)}</span></td>
-                    <td>${esc(led.company)}</td>
-                    <td><span class="chip bl">${esc(led.source)}</span></td>
+                    <td>
+                      ${isB2C 
+                        ? `<span class="chip pu font-bold" style="font-size:9.5px; padding:2px 6px;"><i class="fa-solid fa-user-tag text-purple-600"></i> B2C cá nhân</span>`
+                        : `<span class="chip bl font-bold" style="font-size:9.5px; padding:2px 6px;"><i class="fa-solid fa-building text-blue-600"></i> B2B pháp nhân</span>`
+                      }
+                    </td>
+                    <td>
+                      <span class="cell-bold">${esc(led.name)}</span>
+                      <!-- Notes Display -->
+                      ${led.notes ? `
+                        <div style="font-size:10.5px; color:#5b21b6; background:#f5f3ff; border:1px solid #ddd6fe; border-radius:4px; padding:2px 6px; margin-top:4px; max-width:200px; word-break:break-word;">
+                          <i class="fa-solid fa-note-sticky text-purple-500"></i> ${esc(led.notes)}
+                        </div>
+                      ` : ''}
+                      <!-- Connected Deals Display -->
+                      ${(() => {
+                        const dl = DEALS_DB.filter(d => 
+                          (d.contactName && d.contactName.toLowerCase() === led.name.toLowerCase()) || 
+                          (d.companyName && d.companyName.toLowerCase() === led.company.toLowerCase()) ||
+                          d.id === led.dealId || led.notes?.includes(d.id) || d.name?.includes(led.name)
+                        );
+                        if (dl.length > 0) {
+                          return `
+                            <div style="margin-top:4px; display:flex; flex-direction:column; gap:2px;">
+                              ${dl.map(d => `
+                                <div style="display:inline-flex; align-items:center; background:#ecfdf5; color:#047857; font-size:9.5px; border:1px solid #a7f3d0; padding:1px 6px; border-radius:4px; width:fit-content; font-weight:bold;">
+                                  <i class="fa-solid fa-briefcase" style="margin-right:4px;"></i> Deal: ${esc(d.name)} (${esc(d.stage.replace('_', ' ').toUpperCase())})
+                                </div>
+                              `).join('')}
+                            </div>
+                          `;
+                        } else {
+                          return `<div style="margin-top:4px; font-size:9px; color:var(--n400); font-style:italic;">Chưa có Deal liên kết</div>`;
+                        }
+                      })()}
+                    </td>
+                    <td>
+                      ${isB2C 
+                        ? `<span style="font-size:11.5px; color:var(--n500); font-style:italic;">Khách mua tự do</span>`
+                        : `<span style="font-size:11.5px; font-weight:700; color:var(--n750);"><i class="fa-solid fa-building text-slate-400" style="margin-right:4px;"></i>${esc(led.company)}</span>`
+                      }
+                    </td>
+                    <td>${contactDisplayHtml}</td>
+                    <td><span class="chip bl" style="font-size:10px;">${esc(led.source)}</span></td>
                     <td><span class="${priorityBadge}">${led.priority?.toUpperCase()}</span></td>
                     <td style="text-align:right;" class="tmono cell-bold text-primary-600">${fmtVND(led.value)}</td>
                     <td>
@@ -971,10 +1189,10 @@ export function drawLeadsPage(leadsList, activeTab, filterState) {
                       </div>
                     </td>
                     <td style="text-align:center;">
-                      <div style="display:flex; justify-content:center; gap:8px;">
-                        <button class="btn gr" onclick="window.crmApp.convertLeadToDeal('${led.id}')" title="Chuyển đổi thành Deal thương thảo"><i class="fa-solid fa-shuffle"></i> Convert</button>
-                        <button class="btn bl icon-only" onclick="window.crmApp.openLeadDetail('${led.id}')" title="Chỉnh sửa"><i class="fa-solid fa-edit"></i></button>
-                        <button class="btn rd icon-only" onclick="window.crmApp.deleteLead('${led.id}')" title="Xóa bỏ"><i class="fa-solid fa-trash-can"></i></button>
+                      <div style="display:flex; justify-content:center; gap:4px;">
+                        <button class="btn gr xs" onclick="window.crmApp.convertLeadToDeal('${led.id}')" title="Chuyển đổi thành Deal thương thảo" style="padding:4px 6px; font-size:10.5px;"><i class="fa-solid fa-shuffle"></i> Convert</button>
+                        <button class="btn bl icon-only xs" onclick="window.crmApp.openLeadDetail('${led.id}')" title="Chi tiết & Tiếp cận bảo mật" style="padding:4px 6px;"><i class="fa-solid fa-eye"></i></button>
+                        <button class="btn rd icon-only xs" onclick="window.crmApp.deleteLead('${led.id}')" title="Xóa bỏ" style="padding:4px 6px;"><i class="fa-solid fa-trash-can"></i></button>
                       </div>
                     </td>
                   </tr>
@@ -1097,9 +1315,26 @@ export function renderPipelineKanban(dealsList, activeSubTab = 'kanban') {
     `;
   }
 
+  let contentHtml = '';
+  if (activeSubTab === 'kanban') {
+    contentHtml = `
+      <div class="panel" style="background-color:white; display:flex; justify-content:space-between; align-items:center; padding:12px 24px; margin-bottom: 4px;">
+        <p style="font-size:13px; color:var(--n500);"><i class="fa-solid fa-circle-question"></i> Di chuyển các thẻ Deals thương lượng trôi xuôi phễu theo thứ tự từ trái qua phải để chốt đơn hàng.</p>
+      </div>
+      <div class="pipeline-board">
+        ${boardHtml}
+      </div>
+    `;
+  } else if (activeSubTab === 'list') {
+    contentHtml = listHtml;
+  } else if (activeSubTab === 'unified') {
+    contentHtml = renderUnifiedSalesPipeline();
+  }
+
   return `
     <div class="page-container animate-fadeIn">
-      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--bd); padding-bottom: 12px; margin-bottom: 4px; flex-wrap: wrap; gap: 12px;">
+      ${renderUnifiedPipelineHeader('deals')}
+      <div style="display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid var(--bd); padding-bottom: 12px; margin-bottom: 12px; flex-wrap: wrap; gap: 12px;">
         <div style="display: flex; gap: 8px;">
           <button class="btn ${activeSubTab === 'kanban' ? 'pr' : 'bl'} sm" id="deals-tab-kanban-btn" style="font-weight:700;">
             <i class="fa-solid fa-layer-group"></i> Sơ đồ Phễu Kanban
@@ -1107,18 +1342,441 @@ export function renderPipelineKanban(dealsList, activeSubTab = 'kanban') {
           <button class="btn ${activeSubTab === 'list' ? 'pr' : 'bl'} sm" id="deals-tab-list-btn" style="font-weight:700;">
             <i class="fa-solid fa-list-ul"></i> Danh sách Cơ hội chi tiết
           </button>
+          <button class="btn ${activeSubTab === 'unified' ? 'pr' : 'bl'} sm" id="deals-tab-unified-btn" style="font-weight:800; border-left: 4px solid #6366f1;">
+            <i class="fa-solid fa-route text-indigo-400 animate-pulse"></i> Bản Đồ Tiến Trình 5 Bước (Unified Sales Pipeline)
+          </button>
         </div>
         <button class="btn pr" id="pipeline-quick-add-deal-btn"><i class="fa-solid fa-circle-plus"></i> Tạo Deal Thương Lượng mới</button>
       </div>
 
-      ${activeSubTab === 'kanban' ? `
-        <div class="panel" style="background-color:white; display:flex; justify-content:space-between; align-items:center; padding:12px 24px; margin-bottom: 4px;">
-          <p style="font-size:13px; color:var(--n500);"><i class="fa-solid fa-circle-question"></i> Di chuyển các thẻ Deals thương lượng trôi xuôi phễu theo thứ tự từ trái qua phải để chốt đơn hàng.</p>
+      ${contentHtml}
+    </div>
+  `;
+}
+
+export function renderUnifiedSalesPipeline() {
+  // Compute lists for each of the 5 stages
+
+  // 1. Awareness Stage (status: 'new', 'contacting')
+  const stage1Leads = LEADS_DB.filter(l => l.status === 'new' || l.status === 'contacting');
+  const stage1Sum = stage1Leads.reduce((sum, l) => sum + (l.value || 0), 0);
+
+  // 2. Lead Stage (qualified leads and prospecting/qualified deals, paired together to link across stages)
+  const qualLeads = LEADS_DB.filter(l => l.status === 'qualified' || l.status === 'proposal');
+  const earlyDeals = DEALS_DB.filter(d => d.stage === 'prospecting' || d.stage === 'qualified');
+
+  const stage2Items = [];
+  const processedDealIds = new Set();
+  const processedLeadIds = new Set();
+
+  qualLeads.forEach(lead => {
+    // Check if there is an early deal associated with this lead
+    const matchedDeal = earlyDeals.find(d => 
+      (d.contactName && d.contactName.toLowerCase() === lead.name.toLowerCase()) || 
+      (d.companyName && d.companyName.toLowerCase() === lead.company.toLowerCase()) ||
+      d.id === lead.dealId || lead.notes?.includes(d.id) || d.name?.includes(lead.name)
+    );
+    if (matchedDeal) {
+      stage2Items.push({
+        type: 'paired',
+        lead: lead,
+        deal: matchedDeal,
+        id: `paired-${lead.id}-${matchedDeal.id}`
+      });
+      processedLeadIds.add(lead.id);
+      processedDealIds.add(matchedDeal.id);
+    } else {
+      stage2Items.push({
+        type: 'lead',
+        lead: lead,
+        id: `lead-${lead.id}`
+      });
+      processedLeadIds.add(lead.id);
+    }
+  });
+
+  earlyDeals.forEach(deal => {
+    if (!processedDealIds.has(deal.id)) {
+      // Find matching lead in LEADS_DB (even if status is general)
+      const matchedLead = LEADS_DB.find(lead => 
+        (deal.contactName && deal.contactName.toLowerCase() === lead.name.toLowerCase()) || 
+        (deal.companyName && deal.companyName.toLowerCase() === lead.company.toLowerCase()) ||
+        deal.id === lead.dealId || lead.notes?.includes(deal.id)
+      );
+      if (matchedLead) {
+        stage2Items.push({
+          type: 'paired',
+          lead: matchedLead,
+          deal: deal,
+          id: `paired-${matchedLead.id}-${deal.id}`
+        });
+      } else {
+        stage2Items.push({
+          type: 'deal',
+          deal: deal,
+          id: `deal-${deal.id}`
+        });
+      }
+      processedDealIds.add(deal.id);
+    }
+  });
+
+  const stage2Sum = stage2Items.reduce((sum, item) => {
+    const val1 = item.lead ? (item.lead.value || 0) : 0;
+    const val2 = item.deal ? (item.deal.value || 0) : 0;
+    return sum + Math.max(val1, val2);
+  }, 0);
+
+  // 3. Sales Stage (proposing or negotiating deals)
+  const salesDeals = DEALS_DB.filter(d => d.stage === 'proposal' || d.stage === 'negotiation');
+  const stage3Sum = salesDeals.reduce((sum, d) => sum + (d.value || 0), 0);
+
+  // 4. Payment Stage (closed won deals and their matching invoices)
+  const wonDeals = DEALS_DB.filter(d => d.stage === 'closed_won');
+  const paymentItems = wonDeals.map(deal => {
+    const invoices = INVOICES_DB.filter(inv => 
+      inv.quoteId === deal.id || 
+      inv.contactId === deal.contactId || 
+      (deal.contactName && inv.contactName && inv.contactName.toLowerCase().includes(deal.contactName.toLowerCase()))
+    );
+    const totalInvoiced = invoices.reduce((s, iv) => s + iv.total, 0);
+    const totalPaid = invoices.filter(iv => iv.status === 'paid').reduce((s, iv) => s + iv.total, 0);
+    const outstanding = Math.max(0, deal.value - totalPaid);
+    
+    return {
+      deal,
+      invoices,
+      totalInvoiced,
+      totalPaid,
+      outstanding
+    };
+  });
+  const stage4Sum = wonDeals.reduce((sum, d) => sum + (d.value || 0), 0);
+
+  // 5. Control Stage (open support SLA tickets and operational tasks)
+  const controlTasks = TASKS_DB.filter(t => !t.completed);
+  const controlTickets = TICKETS_DB.filter(tk => tk.status === 'open' || tk.status === 'pending' || tk.status === 'escalated');
+
+  // Let's build the HTML structure for the 5 stages
+  return `
+    <div class="panel" style="background: linear-gradient(135deg, #eef2ff 0%, #f5f3ff 100%); padding: 16px; margin-bottom: 16px; border: 1px solid #ddd6fe; border-radius: var(--r);">
+      <h3 style="font-family: var(--fd); font-weight: 800; font-size: 15px; color: #4338ca; display: flex; align-items: center; gap: 8px;">
+        <i class="fa-solid fa-compass animate-spin" style="animation-duration: 4s;"></i> Bản Đồ Tiến Trình Kinh Doanh Thuần Nhất (SalesPipeline Map)
+      </h3>
+      <p style="font-size: 12.5px; color: #6b21a8; line-height: 1.4; margin-top: 4px;">
+        Góc nhìn hội tụ tích hợp xâu chuỗi 5 giai đoạn cốt lõi của doanh nghiệp: 
+        <strong>(1) Awareness</strong> ➔ 
+        <strong>(2) Lead</strong> ➔ 
+        <strong>(3) Sales</strong> ➔ 
+        <strong>(4) Payment</strong> ➔ 
+        <strong>(5) Control</strong>. 
+        Mọi dữ liệu từ hồ sơ Leads tiềm năng, Cơ hội thương thảo, Báo giá đã duyệt, Hóa đơn nợ nần và Phiếu sự cố hỗ trợ SLA đều được nối tuyến hoàn hảo.
+      </p>
+    </div>
+
+    <div style="display: grid; grid-template-columns: repeat(5, minmax(250px, 1fr)); gap: 14px; margin-top: 12px; overflow-x: auto; padding-bottom: 24px; align-items: start;">
+      
+      <!-- COLUMN 1: AWARENESS -->
+      <div style="background: #fafafa; border: 1px solid var(--bd); border-radius: var(--r); padding: 12px; min-height: 600px; display: flex; flex-direction: column;">
+        <div style="border-top: 4px solid #6366f1; padding-top: 8px; margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-family: var(--fd); font-weight: 800; font-size: 13px; color: #3730a3; text-transform: uppercase;">1. Awareness</span>
+            <span class="chip" style="background: #e0e7ff; color: #4f46e5; font-size: 10px; font-weight: 800;">${stage1Leads.length}</span>
+          </div>
+          <div style="font-size: 11px; font-weight: 700; color: #4338ca; margin-top: 2px;">Vốn ước tính: ${fmtVND(stage1Sum)}</div>
         </div>
-        <div class="pipeline-board">
-          ${boardHtml}
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+          ${stage1Leads.length === 0 ? `
+            <div style="padding: 40px 12px; text-align: center; border: 2px dashed #e2e8f0; border-radius: var(--rs); color: var(--n400); font-size: 11.5px;">
+              <i class="fa-solid fa-magnet" style="font-size: 24px; margin-bottom: 8px; color: #c7d2fe;"></i> Chưa có Leads mới tiếp cận
+            </div>
+          ` : stage1Leads.map(l => {
+            const matchedDeal = DEALS_DB.find(d => 
+              (d.contactName && d.contactName.toLowerCase() === l.name.toLowerCase()) || 
+              (d.companyName && d.companyName.toLowerCase() === l.company.toLowerCase()) ||
+              d.id === l.dealId || l.notes?.includes(d.id)
+            );
+            return `
+              <div class="deal-card" style="border-left: 4px solid #6366f1; padding: 10px; background: white; border-radius: var(--rs); position: relative; border-radius: 8px; box-shadow: var(--sh);" onclick="window.crmApp.openLeadDetail('${l.id}')">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <span class="chip" style="font-size: 8px; padding: 1px 4px; background: #e0e7ff; color: #4f46e5; font-weight: 800;">AWARENESS</span>
+                  <span style="font-size: 9px; color: var(--n500); font-family: var(--fm);">${l.createdAt}</span>
+                </div>
+                <div style="font-family: var(--f); font-weight: 700; font-size: 12.5px; color: var(--n900);">${esc(l.name)}</div>
+                <div style="font-size: 11.5px; color: var(--n500); margin-bottom: 6px;">${esc(l.company)}</div>
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #f1f5f9; padding-top: 6px; margin-top: 6px;">
+                  <span style="font-family: var(--fm); font-size: 11px; font-weight: bold; color: #4f46e5;">Value: ${fmtVND(l.value)}</span>
+                  <span class="chip ${l.priority === 'hot' ? 'rd' : l.priority === 'warm' ? 'am' : 'gy'}" style="font-size: 8px; text-transform: uppercase;">${l.priority}</span>
+                </div>
+
+                <div style="margin-top: 8px; border-top: 1px dashed #f1f5f9; padding-top: 8px;">
+                  ${matchedDeal ? `
+                    <div style="background: #edf1fe; border: 1px solid #c7d2fe; color: #3f51b5; padding: 4px 6px; border-radius: 4px; font-size: 10px; font-weight: 700; display: flex; align-items: center; gap: 4px;" onclick="event.stopPropagation(); window.crmApp.openDealDetailModal('${matchedDeal.id}')">
+                      <i class="fa-solid fa-route text-indigo-500"></i> Đã nối: ${esc(matchedDeal.name.substring(0, 16))}...
+                    </div>
+                  ` : `
+                    <button class="btn pr xs" style="width: 100%; border-radius: 6px; padding: 4px; font-size: 10px; justify-content: center; background: #6366f1; border-color: #6366f1; font-weight: 800;" onclick="event.stopPropagation(); window.crmApp.convertLeadToDeal('${l.id}')">
+                      <i class="fa-solid fa-shuffle"></i> Thăng cấp thành Deal
+                    </button>
+                  `}
+                </div>
+              </div>
+            `;
+          }).join('')}
         </div>
-      ` : listHtml}
+      </div>
+
+      <!-- COLUMN 2: LEAD & QUALIFY -->
+      <div style="background: #fafafa; border: 1px solid var(--bd); border-radius: var(--r); padding: 12px; min-height: 600px; display: flex; flex-direction: column;">
+        <div style="border-top: 4px solid #0ea5e9; padding-top: 8px; margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-family: var(--fd); font-weight: 800; font-size: 13px; color: #0369a1; text-transform: uppercase;">2. Lead & Qualify</span>
+            <span class="chip" style="background: #e0f2fe; color: #0369a1; font-size: 10px; font-weight: 800;">${stage2Items.length}</span>
+          </div>
+          <div style="font-size: 11px; font-weight: 700; color: #0284c7; margin-top: 2px;">Vốn ước tính: ${fmtVND(stage2Sum)}</div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+          ${stage2Items.length === 0 ? `
+            <div style="padding: 40px 12px; text-align: center; border: 2px dashed #e2e8f0; border-radius: var(--rs); color: var(--n400); font-size: 11.5px;">
+              <i class="fa-solid fa-route" style="font-size: 24px; margin-bottom: 8px; color: #bae6fd;"></i> Chưa có cơ hội ở giai đoạn Thẩm định
+            </div>
+          ` : stage2Items.map(item => {
+            const hasDeal = item.type === 'paired' || item.type === 'deal';
+            const hasLead = item.type === 'paired' || item.type === 'lead';
+            const value = item.deal ? item.deal.value : item.lead.value;
+            const name = item.deal ? item.deal.name : item.lead.name;
+            const company = item.deal ? item.deal.companyName : item.lead.company;
+            const source = item.lead ? item.lead.source : 'Inbound Platform';
+            
+            return `
+              <div class="deal-card" style="border-left: 4px solid #0ea5e9; padding: 10px; background: white; border-radius: var(--rs); position: relative; border-radius: 8px; box-shadow: var(--sh);" 
+                   onclick="${item.deal ? `window.crmApp.openDealDetailModal('${item.deal.id}')` : `window.crmApp.openLeadDetail('${item.lead.id}')`}">
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <span class="chip" style="font-size: 8px; padding: 1px 4px; background: #e0f2fe; color: #0284c7; font-weight: 800; text-transform: uppercase;">
+                    ${item.type === 'paired' ? 'LINKED PRO' : item.type.toUpperCase()}
+                  </span>
+                  <span style="font-size: 8px; color: var(--n400);" class="tmono">${esc(source.substring(0, 12))}</span>
+                </div>
+
+                <div style="font-family: var(--f); font-weight: 700; font-size: 12.5px; color: var(--n900);">${esc(name)}</div>
+                <div style="font-size: 11px; color: var(--n500); margin-bottom: 2px;">${esc(company)}</div>
+
+                ${item.type === 'paired' ? `
+                  <div style="font-size: 9px; padding: 2px 6px; background:#f0fdf4; border: 1px solid #bbf7d0; color: #16a34a; border-radius: 4px; display: inline-flex; align-items: center; gap: 4px; margin-top:4px; font-weight:800;">
+                    <i class="fa-solid fa-circle-check"></i> Đã liên kết Lead ➔ Deal
+                  </div>
+                ` : ''}
+
+                <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #f1f5f9; padding-top: 6px; margin-top: 8px;">
+                  <span style="font-family: var(--fm); font-size: 11px; font-weight: bold; color: #0284c7;">${fmtVND(value)}</span>
+                  ${item.deal ? `<span class="chip gy" style="font-size: 8px; font-weight: 700;">Prob: ${item.deal.probability}%</span>` : ''}
+                </div>
+
+                <div style="margin-top: 8px; border-top: 1px dashed #f1f5f9; padding-top: 8px;">
+                  ${item.type === 'lead' ? `
+                    <button class="btn pr xs" style="width: 100%; border-radius: 6px; padding: 4px; font-size: 10px; justify-content: center; background: #0ea5e9; border-color: #0ea5e9; font-weight: 800;" onclick="event.stopPropagation(); window.crmApp.convertLeadToDeal('${item.lead.id}')">
+                      <i class="fa-solid fa-wand-magic-sparkles"></i> Khởi tạo Deal Thẩm Định
+                    </button>
+                  ` : `
+                    <button class="btn bl xs" style="width: 100%; border-radius: 6px; padding: 4px; font-size: 10px; justify-content: center; color: #0284c7; border-color: #0284c7; font-weight: 800;" onclick="event.stopPropagation(); window.crmApp.moveDealNextStage('${item.deal.id}')">
+                      Chuyển Xuôi Sales GĐ3 <i class="fa-solid fa-chevron-right"></i>
+                    </button>
+                  `}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- COLUMN 3: SALES PITCH -->
+      <div style="background: #fafafa; border: 1px solid var(--bd); border-radius: var(--r); padding: 12px; min-height: 600px; display: flex; flex-direction: column;">
+        <div style="border-top: 4px solid #f59e0b; padding-top: 8px; margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-family: var(--fd); font-weight: 800; font-size: 13px; color: #b45309; text-transform: uppercase;">3. Sales & Proposal</span>
+            <span class="chip" style="background: #fef3c7; color: #b45309; font-size: 10px; font-weight: 800;">${salesDeals.length}</span>
+          </div>
+          <div style="font-size: 11px; font-weight: 700; color: #d97706; margin-top: 2px;">Vốn ước tính: ${fmtVND(stage3Sum)}</div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+          ${salesDeals.length === 0 ? `
+            <div style="padding: 40px 12px; text-align: center; border: 2px dashed #e2e8f0; border-radius: var(--rs); color: var(--n400); font-size: 11.5px;">
+              <i class="fa-solid fa-file-pdf" style="font-size: 24px; margin-bottom: 8px; color: #fde047;"></i> Chưa có Cơ hội đang soạn thảo báo giá
+            </div>
+          ` : salesDeals.map(d => {
+            const matchedQuotes = QUOTES_DB.filter(q => q.dealId === d.id);
+            return `
+              <div class="deal-card" style="border-left: 4px solid #f59e0b; padding: 10px; background: white; border-radius: var(--rs); position: relative; border-radius: 8px; box-shadow: var(--sh);" onclick="window.crmApp.openDealDetailModal('${d.id}')">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <span class="chip" style="font-size: 8px; padding: 1px 4px; background: #fef3c7; color: #b45309; font-weight: 800;">SALES PITCH</span>
+                  <span class="chip gy" style="font-size: 8.5px; font-weight: 700; background: #fff7ed; color: #c2410c;">P: ${d.probability}%</span>
+                </div>
+                <div style="font-family: var(--f); font-weight: 700; font-size: 12.5px; color: var(--n900);">${esc(d.name)}</div>
+                <div style="font-size: 11px; color: var(--n500); margin-bottom: 6px;">KH: ${esc(d.contactName)}</div>
+
+                <!-- Synchronized Quotations linkage -->
+                <div style="background: #fafaf9; border: 1px solid #e7e5e4; border-radius: 6px; padding: 6px; margin: 8px 0; display:flex; flex-direction:column; gap:4px;">
+                  <div style="font-size: 9px; font-weight: 800; color: #78716c; text-transform: uppercase;"><i class="fa-solid fa-file-contract"></i> Bản Đề xuất Báo Giá:</div>
+                  ${matchedQuotes.length > 0 ? matchedQuotes.map(q => {
+                    let stBg = '#f1f5f9';
+                    let stCol = '#475569';
+                    if (q.status === 'chap_nhan') { stBg = '#ecfdf5'; stCol = '#16a34a'; }
+                    else if (q.status === 'da_gui' || q.status === 'xem_xet') { stBg = '#fffbeb'; stCol = '#d97706'; }
+                    return `
+                      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 9.5px; background: ${stBg}; color: ${stCol}; padding: 2px 4px; border-radius: 4px; font-weight: 700;">
+                        <span>${q.number}</span>
+                        <span>${q.status.toUpperCase()}</span>
+                      </div>
+                    `;
+                  }).join('') : `
+                    <div style="font-size: 9.5px; color: var(--red); font-style: italic; margin-bottom: 2px;"><i class="fa-solid fa-triangle-exclamation"></i> Không có báo giá đăng ký</div>
+                    <button class="btn pr xs" style="width: 100%; border-radius: 4px; padding: 2px 4px; font-size: 9.5px; justify-content: center; background: #f59e0b; border-color: #f59e0b; font-weight: bold;" onclick="event.stopPropagation(); window.crmApp.go('quotes')">
+                      <i class="fa-solid fa-plus-circle"></i> Soạn Báo Giá (Q3)
+                    </button>
+                  `}
+                </div>
+
+                <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #f1f5f9; padding-top: 6px; margin-top: 8px;">
+                  <span style="font-family: var(--fm); font-size: 11px; font-weight: bold; color: #b45309;">${fmtVND(d.value)}</span>
+                  <span style="font-size: 8.5px; color: var(--n400);" class="tmono"><i class="fa-regular fa-clock"></i> ${d.expectedClose}</span>
+                </div>
+
+                <div style="margin-top: 8px;">
+                  <button class="btn gr xs" style="width: 100%; border-radius: 6px; padding: 4px; font-size: 10px; justify-content: center; background: #ee5b02; border-color: #ee5b02; font-weight: 800;" onclick="event.stopPropagation(); window.crmApp.moveDealNextStage('${d.id}')">
+                    Chốt ký Hợp Đồng <i class="fa-solid fa-circle-check"></i>
+                  </button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- COLUMN 4: PAYMENT RECONCILIATION -->
+      <div style="background: #fafafa; border: 1px solid var(--bd); border-radius: var(--r); padding: 12px; min-height: 600px; display: flex; flex-direction: column;">
+        <div style="border-top: 4px solid #10b981; padding-top: 8px; margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-family: var(--fd); font-weight: 800; font-size: 13px; color: #065f46; text-transform: uppercase;">4. Payment & Won</span>
+            <span class="chip" style="background: #d1fae5; color: #065f46; font-size: 10px; font-weight: 800;">${wonDeals.length}</span>
+          </div>
+          <div style="font-size: 11px; font-weight: 700; color: #047857; margin-top: 2px;">DT Won chốt: ${fmtVND(stage4Sum)}</div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+          ${paymentItems.length === 0 ? `
+            <div style="padding: 40px 12px; text-align: center; border: 2px dashed #e2e8f0; border-radius: var(--rs); color: var(--n400); font-size: 11.5px;">
+              <i class="fa-solid fa-file-invoice-dollar" style="font-size: 24px; margin-bottom: 8px; color: #a7f3d0;"></i> Chưa ghi nhận hợp đồng thành công nào
+            </div>
+          ` : paymentItems.map(item => {
+            return `
+              <div class="deal-card" style="border-left: 4px solid #10b981; padding: 10px; background: white; border-radius: var(--rs); position: relative; border-radius: 8px; box-shadow: var(--sh);" onclick="window.crmApp.openDealDetailModal('${item.deal.id}')">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <span class="chip" style="font-size: 8px; padding: 1px 4px; background: #d1fae5; color: #047857; font-weight: 800; text-transform: uppercase;">CONTRACT WON</span>
+                  <span style="font-size: 9px; color: #059669; font-weight: bold;"><i class="fa-solid fa-circle-check"></i> Đã Chốt</span>
+                </div>
+                <div style="font-family: var(--f); font-weight: 700; font-size: 12.5px; color: var(--n900);">${esc(item.deal.name)}</div>
+                <div style="font-size: 11px; color: var(--n500); margin-bottom: 4px;">Doanh nghiệp: ${esc(item.deal.companyName)}</div>
+                <div style="font-weight: 600; font-size: 11.5px; color: var(--n700); margin-bottom: 4px;">Giá trị: <span class="tmono cell-bold text-emerald-600">${fmtVND(item.deal.value)}</span></div>
+
+                <!-- Linked Invoices synchronization status -->
+                <div style="background: #f0fdf4; border: 1px solid #c6f6d5; border-radius: 6px; padding: 6px; margin: 8px 0; display:flex; flex-direction:column; gap:2px;">
+                  <div style="font-size: 9px; font-weight: 800; color: #047857; text-transform: uppercase;"><i class="fa-solid fa-money-bill-wave"></i> Thu nợ đỏ hóa đơn:</div>
+                  ${item.invoices.length > 0 ? item.invoices.map(inv => {
+                    let stBg = '#fee2e2';
+                    let stCol = '#b91c1c';
+                    if (inv.status === 'paid') { stBg = '#d1fae5'; stCol = '#047857'; }
+                    else if (inv.status === 'partial') { stBg = '#fef3c7'; stCol = '#b45309'; }
+                    return `
+                      <div style="display: flex; justify-content: space-between; align-items: center; font-size: 9px; background: ${stBg}; color: ${stCol}; padding: 1.5px 3px; border-radius: 4px; font-weight: bold; margin-bottom:1px;">
+                        <span class="tmono">${inv.number}</span>
+                        <span>${inv.status.toUpperCase()}</span>
+                      </div>
+                    `;
+                  }).join('') + `
+                    <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #a7f3d0; margin-top: 4px; padding-top: 4px; font-size: 9.5px; font-weight: 800; color: #065f46;">
+                      <span>Outstanding Debt:</span>
+                      <span class="tmono">${fmtVND(item.outstanding)}</span>
+                    </div>
+                  ` : `
+                    <div style="font-size: 9.5px; color: var(--red); font-style: italic; margin-bottom: 2px;"><i class="fa-solid fa-triangle-exclamation"></i> Chưa lập Hóa đơn thanh quyết toán</div>
+                    <button class="btn pr xs" style="width: 100%; border-radius: 4px; padding: 2px 4px; font-size: 9.5px; justify-content: center; background: #10b981; border-color: #10b981; font-weight: bold;" onclick="event.stopPropagation(); window.crmApp.spawnInvoiceFromQuote('${item.deal.id}')">
+                      <i class="fa-solid fa-file-invoice"></i> + Xuất hóa đơn thu nợ
+                    </button>
+                  `}
+                </div>
+
+                <div style="margin-top: 8px; display: flex; gap: 4px;">
+                  ${item.outstanding > 0 && item.invoices.length > 0 ? `
+                    <button class="btn gr xs" style="flex: 1; border-radius: 6px; padding: 4px; font-size: 9.5px; justify-content: center; background: #10b981; border-color: #10b981; font-weight: 800;" onclick="event.stopPropagation(); window.crmApp.recordInvoicePayment('${item.invoices[0].id}')">
+                      <i class="fa-solid fa-cash-register"></i> Thu nợ
+                    </button>
+                  ` : ''}
+                  <button class="btn bl xs" style="flex: 1; border-radius: 6px; padding: 4px; font-size: 9.5px; justify-content: center; color: #10b981; border-color: #10b981; font-weight: 800;" onclick="event.stopPropagation(); window.crmApp.go('tasks')">
+                    Bàn giao SLA <i class="fa-solid fa-truck-ramp-box"></i>
+                  </button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- COLUMN 5: POST-SALE CONTROL -->
+      <div style="background: #fafafa; border: 1px solid var(--bd); border-radius: var(--r); padding: 12px; min-height: 600px; display: flex; flex-direction: column;">
+        <div style="border-top: 4px solid #ec4899; padding-top: 8px; margin-bottom: 12px;">
+          <div style="display: flex; justify-content: space-between; align-items: center;">
+            <span style="font-family: var(--fd); font-weight: 800; font-size: 13px; color: #9d174d; text-transform: uppercase;">5. Post-Sales & SLA</span>
+            <span class="chip" style="background: #fce7f3; color: #9d174d; font-size: 10px; font-weight: 800;">${controlTasks.length + controlTickets.length}</span>
+          </div>
+          <div style="font-size: 11px; font-weight: 700; color: #be185d; margin-top: 2px;">Sự cố: ${controlTickets.length} | SLA Tasks: ${controlTasks.length}</div>
+        </div>
+        <div style="flex: 1; display: flex; flex-direction: column; gap: 10px;">
+          ${controlTasks.length === 0 && controlTickets.length === 0 ? `
+            <div style="padding: 40px 12px; text-align: center; border: 2px dashed #e2e8f0; border-radius: var(--rs); color: var(--n400); font-size: 11.5px;">
+              <i class="fa-solid fa-circle-check" style="font-size: 24px; margin-bottom: 8px; color: #fbcfe8;"></i> Vận hành hoàn hảo, không tồn đọng tickets lỗi
+            </div>
+          ` : ''}
+
+          <!-- Display Tasks checklist -->
+          ${controlTasks.map(t => {
+            return `
+              <div class="deal-card" style="border-left: 4px solid #ec4899; padding: 10px; background: white; border-radius: var(--rs); position: relative; border-radius: 8px; box-shadow: var(--sh);">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <span class="chip" style="font-size: 8px; padding: 1px 4px; background: #fce7f3; color: #be185d; font-weight: 800;">ACTIVE OPERATION</span>
+                  <input type="checkbox" style="width: auto; height: auto; cursor: pointer; margin: 0; transform: scale(1.15);" onchange="window.crmApp.toggleTaskCompletion('${t.id}')" title="Đánh dấu Hoàn tất tác nghiệp" />
+                </div>
+                <div style="font-family: var(--f); font-weight: 700; font-size: 12px; color: var(--n900); margin-bottom: 4px;">${esc(t.title)}</div>
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #f1f5f9; padding-top: 6px; margin-top: 6px; font-size: 10px; color: var(--n400);">
+                  <span>Hạn: ${t.dueDate}</span>
+                  <span class="chip ${t.priority === 'high' ? 'rd' : 'gy'}" style="font-size: 8.5px; text-transform: uppercase;">${t.priority}</span>
+                </div>
+              </div>
+            `;
+          }).join('')}
+
+          <!-- Display active support/SLA tickets -->
+          ${controlTickets.map(tk => {
+            return `
+              <div class="deal-card" style="border-left: 4px solid #14b8a6; padding: 10px; background: white; border-radius: var(--rs); position: relative; border-radius: 8px; box-shadow: var(--sh); cursor: pointer;" onclick="window.crmApp.openTicketDetail('${tk.id}')">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+                  <span class="chip" style="font-size: 8px; padding: 1px 4px; background: #ccfbf1; color: #0f766e; font-weight: 800;">🎫 ACTIVE TICKET</span>
+                  <span class="chip ${tk.priority === 'Critical' || tk.priority === 'High' ? 'rd' : 'bl'}" style="font-size: 8px; font-weight: 700; text-transform: uppercase;">${tk.priority}</span>
+                </div>
+                <div style="font-family: var(--f); font-weight: 700; font-size: 12px; color: var(--n900);">${tk.number}: ${esc(tk.subject)}</div>
+                <div style="font-size: 11px; color: var(--n500); margin-bottom: 4px;">Khách báo: ${esc(tk.contactName)}</div>
+                
+                <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px dashed #f1f5f9; padding-top: 6px; margin-top: 6px;">
+                  <span style="font-size: 9.5px; color: var(--n400);"><i class="fa-solid fa-envelope-open-text"></i> ${tk.channel}</span>
+                  <span style="font-size: 10px; font-weight: 800; background: #e6fffa; border: 1px solid #14b8a6; color:#0f766e; padding: 1px 4px; border-radius:4px;">SLA: ${tk.slaHours}h</span>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+
     </div>
   `;
 }
@@ -1142,6 +1800,7 @@ export function renderTasksPage(tasksList, filterTag = 'all') {
 
   return `
     <div class="page-container animate-fadeIn">
+      ${renderUnifiedPipelineHeader('tasks')}
       <!-- Title & Module tabs -->
       <div class="panel" style="padding: 14px 18px; margin-bottom: 12px; border-left: 4px solid var(--p500);">
         <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px;">
@@ -1280,6 +1939,7 @@ export function renderInvoicesPage(invoicesList) {
 
   return `
     <div class="page-container animate-fadeIn">
+      ${renderUnifiedPipelineHeader('invoices')}
       <!-- Metric Cards for Accounts Receivable & Cashflow -->
       <div class="krow" style="margin-bottom: 4px;">
         <div class="kcard b">
@@ -1343,12 +2003,20 @@ export function renderInvoicesPage(invoicesList) {
                   paidAmt = 0;
                 }
 
+                // Look up matching client details in memory to satisfy user request on invoice ledger page
+                const clientContact = CONTACTS_DB.find(c => c.fullName === inv.contactName) || 
+                                      LEADS_DB.find(l => l.name === inv.contactName) || {};
+                const clientPhone = clientContact.phone || '';
+                const clientEmail = clientContact.email || '';
+
                 return `
                   <tr>
                     <td class="tmono cell-bold text-indigo-600">${inv.number}</td>
                     <td>
-                      <span class="cell-bold">${esc(inv.contactName)}</span>
-                      <div style="font-size:10px; color:var(--n400); font-family:var(--fm);">${inv.quoteId}</div>
+                      <div class="font-bold text-gray-800" style="font-size:12.5px;">${esc(inv.contactName)}</div>
+                      ${clientPhone ? `<div style="font-size:10.5px; color:#059669; font-weight:600; display:inline-flex; align-items:center; gap:4px; margin-top:2px; background:#ecfdf5; padding:1px 6px; border-radius:3px;"><i class="fa-solid fa-phone text-emerald-500" style="font-size:8px;"></i> SĐT: ${esc(clientPhone)}</div>` : ''}
+                      ${clientEmail ? `<div style="font-size:10px; color:#4f46e5; font-weight:500; display:flex; align-items:center; gap:4px; margin-top:1px; opacity:0.85;"><i class="fa-solid fa-envelope" style="font-size:8px;"></i> ${esc(clientEmail)}</div>` : ''}
+                      <div style="font-size:9.5px; color:var(--n400); font-family:var(--fm); margin-top:1px;">Biểu giá: ${inv.quoteId}</div>
                     </td>
                     <td class="tmono cell-bold text-gray-700">${fmtVND(inv.total)}</td>
                     <td class="tmono text-emerald-600">${fmtVND(paidAmt)}</td>
@@ -1363,7 +2031,9 @@ export function renderInvoicesPage(invoicesList) {
                       <div style="display:flex; justify-content:center; gap:8px;">
                         ${outstanding > 0 ? `
                           <button class="btn gr sm" onclick="window.crmApp.recordInvoicePayment('${inv.id}')" title="Thu hồi công nợ trực tiếp" style="padding: 4px 8px; font-size: 11px;"><i class="fa-solid fa-cash-register"></i> Thu hồi</button>
-                        ` : ''}
+                        ` : `
+                          <button class="btn sm" onclick="window.crmApp.go('tasks')" title="Khởi chạy Checklist bàn giao / Chăm sóc SLA" style="padding: 4px 8px; font-size: 11px; background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; font-weight:700;"><i class="fa-solid fa-truck-ramp-box text-emerald-500"></i> Bàn giao SLA</button>
+                        `}
                         <button class="btn bl sm icon-only" onclick="window.crmApp.printInvoice('${inv.id}')" title="Xem chi tiết hóa đơn/In ấn"><i class="fa-solid fa-print"></i></button>
                         <button class="btn rd sm icon-only" onclick="window.crmApp.deleteInvoice('${inv.id}')" title="Hủy hóa đơn"><i class="fa-solid fa-circle-xmark"></i></button>
                       </div>
@@ -1386,6 +2056,7 @@ export function renderInvoicesPage(invoicesList) {
 export function renderQuotationsPage(quotesList) {
   return `
     <div class="page-container animate-fadeIn">
+      ${renderUnifiedPipelineHeader('quotes')}
       <div class="filter-bar" style="display:flex; justify-content:space-between;">
         <h3 style="font-family:var(--fd); font-size:14px; font-weight:700;"><i class="fa-solid fa-file-invoice-dollar text-primary-500"></i> Quản lý Hồ sơ Báo giá (Quotations Portfolio)</h3>
         <button class="btn pr" id="quotations-open-builder-trigger-btn"><i class="fa-solid fa-file-signature"></i> Tạo Báo giá mới</button>
@@ -1426,9 +2097,10 @@ export function renderQuotationsPage(quotesList) {
                     <td class="tmono">${q.validUntil}</td>
                     <td><span class="${stBadge} uppercase" style="font-size:10px;">${q.status}</span></td>
                     <td style="text-align:center;">
-                      <div style="display:flex; justify-content:center; gap:8px;">
-                        <button class="btn bl" onclick="window.crmApp.printQuotation('${q.id}')"><i class="fa-solid fa-print"></i> In / Xuất PDF</button>
-                        <button class="btn bl icon-only" onclick="window.crmApp.deleteQuote('${q.id}')"><i class="fa-solid fa-trash-can"></i></button>
+                      <div style="display:flex; justify-content:center; gap:8px; align-items:center;">
+                        <button class="btn gr sm" onclick="window.crmApp.spawnInvoiceFromQuote('${q.id}')" title="Phát hành hóa đơn trực thu"><i class="fa-solid fa-file-invoice"></i> Xuất Hóa Đơn</button>
+                        <button class="btn bl sm" onclick="window.crmApp.printQuotation('${q.id}')"><i class="fa-solid fa-print"></i> In / PDF</button>
+                        <button class="btn bl sm icon-only" onclick="window.crmApp.deleteQuote('${q.id}')"><i class="fa-solid fa-trash-can"></i></button>
                       </div>
                     </td>
                   </tr>
@@ -1511,7 +2183,7 @@ export function drawQuoteBuilderInner() {
    8. CLIENTS - CONTACTS & COMPANIES VIEWS
    ========================================================================== */
 
-export function renderCustomersPage(activeSubTab = 'b2b') {
+export function renderCustomersPage(activeSubTab = 'b2c') {
   return `
     <div class="page-container animate-fadeIn">
       <!-- Title & Tabs -->
@@ -1553,6 +2225,7 @@ export function renderCustomersPage(activeSubTab = 'b2b') {
                 <th>Quy mô</th>
                 <th>Điện thoại</th>
                 <th>Website</th>
+                <th>Sales Phụ trách</th>
                 <th style="text-align:right;">Doanh số đóng góp</th>
                 <th style="text-align:center;">Hành động</th>
               </tr>
@@ -1575,6 +2248,21 @@ export function renderCustomersPage(activeSubTab = 'b2b') {
                   <td class="tmono">
                     <a href="${esc(cmp.website)}" target="_blank" style="color:var(--b600); text-decoration:none;"><i class="fa-solid fa-globe"></i> Visit Site</a>
                   </td>
+                  <td>
+                    ${(() => {
+                      const associatedDeal = DEALS_DB.find(d => d.companyId === cmp.id);
+                      let repId = associatedDeal ? associatedDeal.ownerId : null;
+                      if (!repId) {
+                        const associatedContact = CONTACTS_DB.find(c => c.companyId === cmp.id);
+                        repId = associatedContact ? associatedContact.ownerId : null;
+                      }
+                      const salesUser = USERS_DB.find(u => u.id === (repId || 'usr-sales'));
+                      const salesName = salesUser ? salesUser.name : 'Chưa phân bổ';
+                      return `<div style="display:flex; align-items:center; gap:6px; font-weight:600; color:var(--n700); font-size:11px;">
+                        <i class="fa-solid fa-user-tie text-indigo-500" style="font-size:10px;"></i> ${esc(salesName)}
+                      </div>`;
+                    })()}
+                  </td>
                   <td class="tmono cell-bold text-emerald-600" style="text-align:right;">${fmtVND(cmp.revenue || 0)}</td>
                   <td style="text-align:center;">
                     <div style="display:inline-flex; gap:6px;">
@@ -1591,18 +2279,41 @@ export function renderCustomersPage(activeSubTab = 'b2b') {
           <table class="tw">
             <thead>
               <tr>
-                <th>Khách hàng / Đại diện</th>
-                <th>Chức danh</th>
-                <th>Doanh nghiệp liên kết</th>
-                <th>Điện thoại</th>
-                <th>Địa chỉ Email</th>
-                <th>Nhóm</th>
-                <th style="text-align:center;">Hành động</th>
+                <th>Khách hàng cá nhân (B2C)</th>
+                <th>Kênh tiếp cận bảo mật</th>
+                <th>Phân khúc khách lẻ</th>
+                <th>Ghi chú tiêu dùng</th>
+                <th>Nhãn nhóm</th>
+                <th>Sales Phụ trách</th>
+                <th style="text-align:center;">Thao tác</th>
               </tr>
             </thead>
             <tbody>
               ${CONTACTS_DB.map(con => {
-                const tagColor = con.tags === 'VIP' ? 'rd' : con.tags === 'Nợ xấu' ? 'am' : con.tags === 'Doanh nghiệp' ? 'bl' : 'gr';
+                const tagColor = con.tags === 'VIP' ? 'rd' : con.tags === 'Nợ xấu' ? 'am' : con.tags === 'Khách lẻ' ? 'pu' : 'gr';
+                const showPhone = (con.id.charCodeAt(con.id.length - 1) % 2 === 0);
+
+                let contactDisplayHtml = '';
+                if (showPhone) {
+                  contactDisplayHtml = `
+                    <div style="font-family:var(--fm); line-height: 1.3;">
+                      <span class="text-emerald-700 font-bold" style="font-size:11.5px; background: rgba(16,185,129,0.1); padding:2px 5px; border-radius:4px;"><i class="fa-solid fa-phone"></i> ${con.phone}</span>
+                      <div style="font-size:9.5px; color:var(--n400); margin-top:3px;">
+                        <i class="fa-solid fa-whiteboard text-rose-500" title="Bảo mật B2C"></i> Email: <em>[🔒 Ẩn danh bảo mật B2C]</em>
+                      </div>
+                    </div>
+                  `;
+                } else {
+                  contactDisplayHtml = `
+                    <div style="font-family:var(--fm); line-height: 1.3;">
+                      <span class="text-indigo-700 font-bold" style="font-size:11.5px; background: rgba(99,102,241,0.1); padding:2px 5px; border-radius:4px;"><i class="fa-solid fa-envelope"></i> ${esc(con.email)}</span>
+                      <div style="font-size:9.5px; color:var(--n400); margin-top:3px;">
+                        <i class="fa-solid fa-whiteboard text-rose-500" title="Bảo mật B2C"></i> SĐT: <em>[🔒 Ẩn danh bảo mật B2C]</em>
+                      </div>
+                    </div>
+                  `;
+                }
+
                 return `
                   <tr>
                     <td>
@@ -1614,15 +2325,23 @@ export function renderCustomersPage(activeSubTab = 'b2b') {
                         </div>
                       </div>
                     </td>
-                    <td><span class="chip pu font-bold" style="font-size:10px;">${esc(con.title)}</span></td>
-                    <td><span class="cell-bold" style="color:var(--n700);"><i class="fa-solid fa-building text-slate-400" style="margin-right:4px;"></i>${esc(con.companyName)}</span></td>
-                    <td class="tmono">${con.phone}</td>
-                    <td class="tmono">${esc(con.email)}</td>
-                    <td><span class="chip ${tagColor} font-bold" style="font-size:10px;"><i class="fa-solid fa-tag"></i> ${esc(con.tags || 'Khách mới')}</span></td>
+                    <td>${contactDisplayHtml}</td>
+                    <td><span class="chip pu font-bold" style="font-size:10px;"><i class="fa-solid fa-user-tag text-purple-600"></i> ${esc(con.title || 'Khách tiêu dùng')}</span></td>
+                    <td><span style="font-size:11.5px; color:var(--n600); font-style:italic;">${esc(con.notes || 'Khách lẻ tự do mua sắm cá nhân')}</span></td>
+                    <td><span class="chip ${tagColor} font-bold" style="font-size:10px;"><i class="fa-solid fa-tag"></i> ${esc(con.tags || 'Khách lẻ')}</span></td>
+                    <td>
+                      ${(() => {
+                        const salesUser = USERS_DB.find(u => u.id === (con.ownerId || 'usr-sales'));
+                        const salesName = salesUser ? salesUser.name : 'Chưa phân bổ';
+                        return `<div style="display:flex; align-items:center; gap:6px; font-weight:600; color:var(--n700); font-size:11px;">
+                          <i class="fa-solid fa-user-tie text-indigo-500" style="font-size:10px;"></i> ${esc(salesName)}
+                        </div>`;
+                      })()}
+                    </td>
                     <td style="text-align:center;">
-                      <div style="display:inline-flex; gap:6px;">
-                        <button class="btn bl icon-only" onclick="window.crmApp.openContactEdit('${con.id}')" title="Sửa hồ sơ"><i class="fa-solid fa-edit"></i></button>
-                        <button class="btn rd icon-only" onclick="window.crmApp.deleteContact('${con.id}')" title="Xóa bỏ"><i class="fa-solid fa-trash-can"></i></button>
+                      <div style="display:inline-flex; gap:4px;">
+                        <button class="btn bl icon-only xs" onclick="window.crmApp.openContactEdit('${con.id}')" title="Sửa hồ sơ & thông tin tiếp cận" style="padding:4px 6px;"><i class="fa-solid fa-edit"></i></button>
+                        <button class="btn rd icon-only xs" onclick="window.crmApp.deleteContact('${con.id}')" title="Xóa bỏ" style="padding:4px 6px;"><i class="fa-solid fa-trash-can"></i></button>
                       </div>
                     </td>
                   </tr>
@@ -1699,6 +2418,7 @@ export function renderProductsPage(productsList) {
 export function renderTicketsPage(ticketsList) {
   return `
     <div class="page-container animate-fadeIn">
+      ${renderUnifiedPipelineHeader('tasks')}
       <div class="filter-bar" style="display:flex; justify-content:space-between; align-items:center;">
         <h3 style="font-family:var(--fd); font-size:14px; font-weight:700;"><i class="fa-solid fa-headset text-teal"></i> Hàng trực xử lý SLA hỗ trợ kỹ thuật</h3>
         <button class="btn pr" id="support-tickets-new-creator-trigger"><i class="fa-solid fa-circle-plus"></i> Khởi tạo Ticket</button>
@@ -1835,7 +2555,7 @@ export function renderUsersPermissionsPage() {
                   </td>
                   <td class="tmono">${esc(usr.email)}</td>
                   <td><span class="chip bl font-bold">${esc(usr.dept)}</span></td>
-                  <td><span class="${rbBadge} font-bold uppercase" style="font-size:10px;">${usr.role}</span></td>
+                  <td><span class="${rbBadge} font-bold uppercase" style="font-size:10px;">${usr.role === 'manager' ? 'MARKETERS' : usr.role === 'superadmin' ? 'ADMIN' : usr.role === 'sales' ? 'REP' : usr.role}</span></td>
                   <td>
                     <span class="chip ${usr.status==='active'?'gr':'gy'}">${usr.status==='active'?'ĐANG HOẠT ĐỘNG':'ĐÃ KHÓA'}</span>
                   </td>
@@ -2054,6 +2774,96 @@ export function renderReportsPage(filterState = { range: '12', repId: 'all', gro
         </div>
       </div>
 
+      <!-- Funnel Conversion Report Section (UAT: TC-022) -->
+      <div class="panel" style="margin-bottom:16px; border-left: 4px solid #6366f1;">
+        <h3 style="font-family:var(--fd); font-size:14px; font-weight:800; color:#312e81; margin-bottom:14px; border-bottom:1px solid var(--bd); padding-bottom:8px; display:flex; align-items:center; gap:8px;">
+          <i class="fa-solid fa-filter text-indigo-500"></i> Báo Cáo Hiệu Suất Tỷ Lệ Chuyển Đổi Phễu Đa Tầng (TC-022)
+        </h3>
+        
+        <p style="font-size:12px; color:var(--n500); margin-bottom:14px; line-height:1.4;">
+          Số liệu đối soát tự động từ các lớp mốc sự kiện của Phễu. T1 (Nhận thức toàn phần) → T2 (Chấm Điểm & Phân loại) → T3 (Dòng Cơ hội thương đãi) → T4 (Quyết toán thanh quỹ thắng chi).
+        </p>
+
+        <div style="display:flex; flex-wrap:wrap; gap:12px; align-items:stretch;">
+          <!-- T1 -->
+          <div style="flex:1; min-width:180px; padding:14px; background-color:#f8fafc; border:1px solid #e2e8f0; border-radius:8px; display:flex; flex-direction:column; justify-content:space-between; text-align:center; box-shadow:0 1px 2px rgba(0,0,0,0.02);">
+            <div>
+              <div style="font-size:11px; font-weight:800; color:#64748b; text-transform:uppercase; letter-spacing:0.5px;">T1: Tiếp Cận (Awareness)</div>
+              <p style="font-family:var(--fm); font-size:24px; font-weight:800; color:#1e293b; margin:6px 0;">
+                ${LEADS_DB.length}
+              </p>
+            </div>
+            <span class="chip gy" style="font-size:9.5px; font-weight:700; width:fit-content; margin:0 auto;">100% Phễu sơ khởi</span>
+          </div>
+
+          <!-- Arrow 1 -->
+          <div style="display:flex; align-items:center; justify-content:center; color:#cbd5e1; font-size:16px; font-weight:bold;">
+            <i class="fa-solid fa-angle-right"></i>
+          </div>
+
+          <!-- T2 -->
+          <div style="flex:1; min-width:180px; padding:14px; background-color:#eff6ff; border:1px solid #bfdbfe; border-radius:8px; display:flex; flex-direction:column; justify-content:space-between; text-align:center; box-shadow:0 1px 2px rgba(0,0,0,0.02);">
+            <div>
+              <div style="font-size:11px; font-weight:800; color:#1e40af; text-transform:uppercase; letter-spacing:0.5px;">T2: Đánh Giá (Scoring)</div>
+              <p style="font-family:var(--fm); font-size:24px; font-weight:800; color:#1d4ed8; margin:6px 0;">
+                ${LEADS_DB.filter(l => l.status !== 'new' && l.status !== 'pending_assignment').length}
+              </p>
+            </div>
+            <span class="chip bl font-bold" style="font-size:9.5px; width:fit-content; margin:0 auto;">
+              ${LEADS_DB.length > 0 ? ((LEADS_DB.filter(l => l.status !== 'new' && l.status !== 'pending_assignment').length / LEADS_DB.length) * 100).toFixed(1) : 0}% Chuyển đổi
+            </span>
+          </div>
+
+          <!-- Arrow 2 -->
+          <div style="display:flex; align-items:center; justify-content:center; color:#cbd5e1; font-size:16px; font-weight:bold;">
+            <i class="fa-solid fa-angle-right"></i>
+          </div>
+
+          <!-- T3 -->
+          <div style="flex:1; min-width:180px; padding:14px; background-color:#faf5ff; border:1px solid #e9d5ff; border-radius:8px; display:flex; flex-direction:column; justify-content:space-between; text-align:center; box-shadow:0 1px 2px rgba(0,0,0,0.02);">
+            <div>
+              <div style="font-size:11px; font-weight:800; color:#6b21a8; text-transform:uppercase; letter-spacing:0.5px;">T3: Đề Xuất (Sales)</div>
+              <p style="font-family:var(--fm); font-size:24px; font-weight:800; color:#7e22ce; margin:6px 0;">
+                ${DEALS_DB.filter(d => d.stage !== 'prospecting' && d.stage !== 'qualified').length}
+              </p>
+            </div>
+            <span class="chip pu font-bold" style="font-size:9.5px; width:fit-content; margin:0 auto;">
+              ${LEADS_DB.filter(l => l.status !== 'new' && l.status !== 'pending_assignment').length > 0 ? ((DEALS_DB.filter(d => d.stage !== 'prospecting' && d.stage !== 'qualified').length / LEADS_DB.filter(l => l.status !== 'new' && l.status !== 'pending_assignment').length) * 100).toFixed(1) : 0}% Chuyển đổi
+            </span>
+          </div>
+
+          <!-- Arrow 3 -->
+          <div style="display:flex; align-items:center; justify-content:center; color:#cbd5e1; font-size:16px; font-weight:bold;">
+            <i class="fa-solid fa-angle-right"></i>
+          </div>
+
+          <!-- T4 -->
+          <div style="flex:1; min-width:180px; padding:14px; background-color:#f0fdf4; border:1px solid #bbf7d0; border-radius:8px; display:flex; flex-direction:column; justify-content:space-between; text-align:center; box-shadow:0 1px 2px rgba(0,0,0,0.02);">
+            <div>
+              <div style="font-size:11px; font-weight:800; color:#166534; text-transform:uppercase; letter-spacing:0.5px;">T4: Quyết Toán (Payment)</div>
+              <p style="font-family:var(--fm); font-size:24px; font-weight:800; color:#15803d; margin:6px 0;">
+                ${DEALS_DB.filter(d => d.stage === 'closed_won').length}
+              </p>
+            </div>
+            <span class="chip gr font-bold" style="font-size:9.5px; width:fit-content; margin:0 auto;">
+              ${DEALS_DB.filter(d => d.stage !== 'prospecting' && d.stage !== 'qualified').length > 0 ? ((DEALS_DB.filter(d => d.stage === 'closed_won').length / DEALS_DB.filter(d => d.stage !== 'prospecting' && d.stage !== 'qualified').length) * 100).toFixed(1) : 0}% Chuyển đổi
+            </span>
+          </div>
+        </div>
+
+        <div style="background-color:#f8fafc; border:1px solid #f1f5f9; border-radius:6px; margin-top:14px; padding:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
+          <div style="font-size:12.5px; color:#334155; display:flex; align-items:center; gap:6px;">
+            🏁 <strong style="color:#0f172a;">Tỷ lệ thắng phễu lũy kế (T1 → T4 Closed Won):</strong> 
+            <span style="font-size:14.5px; font-weight:900; color:#16a34a; font-family:var(--fm); background:#dcfce7; padding:2px 8px; border-radius:4px;">
+              ${LEADS_DB.length > 0 ? ((DEALS_DB.filter(d => d.stage === 'closed_won').length / LEADS_DB.length) * 100).toFixed(1) : 0}%
+            </span>
+          </div>
+          <div style="font-size:11px; color:#64748b; font-style:italic;">
+            (Chỉ số phễu thực thi dựa trên dòng quan hệ dữ liệu liên phòng ban)
+          </div>
+        </div>
+      </div>
+
       <!-- Diagrams Column Grid -->
       <div class="db-grid-2x" style="margin-bottom:16px;">
         <div class="panel" style="display:flex; flex-direction:column; gap:12px; height:340px;">
@@ -2126,4 +2936,1350 @@ export function renderReportsPage(filterState = { range: '12', repId: 'all', gro
     </div>
   `;
 }
+
+/* ==========================================================================
+   7c. SALES UTILITY TOOLKIT & MULTI-FEATURE HUBS
+   ========================================================================== */
+
+export function renderSalesToolkitPage(plannerDb, diagnosisAnswers, roiInputs, emailTemplates, dealsDb) {
+  const activeTab = window.TOOLKIT_TAB_STATE || 'planner';
+  
+  return `
+    <div class="page-container animate-fadeIn">
+      <!-- Hub Header & Toolkit Tab Switcher -->
+      <div class="panel" style="background: linear-gradient(135deg, #1e1b4b, #312e81); color: white; border-radius: var(--rs); padding: 24px; position: relative;">
+        <div style="max-width: 750px;">
+          <h2 style="font-family: var(--fd); font-size: 20px; font-weight: 850; color: #fbbf24;"><i class="fa-solid fa-wand-magic-sparkles"></i> Hộp Công Cụ Bổ Trợ Sales & Playbook Hub</h2>
+          <p style="font-size: 13px; color: #c7d2fe; margin-top: 6px; line-height:1.5;">
+            Trang bị các công cụ thực chiến đỉnh cao nhằm hỗ trợ nhân sự Sales chuẩn bị thương lượng chốt hời, lên sổ Daily Planner, chẩn đoán chi tiết nút thắt Pain Point của đối tác, thẩm định ROI thực chứng cho sếp và customize email tự động chuẩn hóa biến thương vụ.
+          </p>
+        </div>
+        
+        <!-- Tab Selector Switcher -->
+        <div style="display: flex; gap: 8px; margin-top: 20px; flex-wrap: wrap;">
+          <button class="btn" id="tk-tab-planner" style="display-flex; align-items:center; gap:6px; background: ${activeTab === 'planner' ? '#fbbf24' : 'rgba(255,255,255,0.08)'}; color: ${activeTab === 'planner' ? '#1e1b4b' : 'white'}; border: 1px solid ${activeTab === 'planner' ? '#fbbf24' : 'rgba(255,255,255,0.15)'}; font-weight: 700; font-size:11.5px; padding: 6px 12px;">
+            <i class="fa-solid fa-calendar-day"></i> Daily Planner
+          </button>
+          <button class="btn" id="tk-tab-diagnosis" style="display-flex; align-items:center; gap:6px; background: ${activeTab === 'diagnosis' ? '#fbbf24' : 'rgba(255,255,255,0.08)'}; color: ${activeTab === 'diagnosis' ? '#1e1b4b' : 'white'}; border: 1px solid ${activeTab === 'diagnosis' ? '#fbbf24' : 'rgba(255,255,255,0.15)'}; font-weight: 700; font-size:11.5px; padding: 6px 12px;">
+            <i class="fa-solid fa-stethoscope"></i> Pain Diagnosis
+          </button>
+          <button class="btn" id="tk-tab-roi" style="display-flex; align-items:center; gap:6px; background: ${activeTab === 'roi' ? '#fbbf24' : 'rgba(255,255,255,0.08)'}; color: ${activeTab === 'roi' ? '#1e1b4b' : 'white'}; border: 1px solid ${activeTab === 'roi' ? '#fbbf24' : 'rgba(255,255,255,0.15)'}; font-weight: 700; font-size:11.5px; padding: 6px 12px;">
+            <i class="fa-solid fa-chart-line"></i> ROI Calculator
+          </button>
+          <button class="btn" id="tk-tab-email" style="display-flex; align-items:center; gap:6px; background: ${activeTab === 'email' ? '#fbbf24' : 'rgba(255,255,255,0.08)'}; color: ${activeTab === 'email' ? '#1e1b4b' : 'white'}; border: 1px solid ${activeTab === 'email' ? '#fbbf24' : 'rgba(255,255,255,0.15)'}; font-weight: 700; font-size:11.5px; padding: 6px 12px;">
+            <i class="fa-solid fa-envelope-open-text"></i> Email Library
+          </button>
+          <button class="btn" id="tk-tab-quiz" style="display-flex; align-items:center; gap:6px; background: ${activeTab === 'quiz' ? '#fbbf24' : 'rgba(255,255,255,0.08)'}; color: ${activeTab === 'quiz' ? '#1e1b4b' : 'white'}; border: 1px solid ${activeTab === 'quiz' ? '#fbbf24' : 'rgba(255,255,255,0.15)'}; font-weight: 700; font-size:11.5px; padding: 6px 12px;">
+            <i class="fa-solid fa-graduation-cap"></i> Pre-Meeting Quiz
+          </button>
+        </div>
+      </div>
+
+      <!-- Active Content Rendering Pane -->
+      <div class="tk-active-pane">
+        ${activeTab === 'planner' ? renderSubTabPlanner(plannerDb) : ''}
+        ${activeTab === 'diagnosis' ? renderSubTabDiagnosis(diagnosisAnswers) : ''}
+        ${activeTab === 'roi' ? renderSubTabRoi(roiInputs) : ''}
+        ${activeTab === 'email' ? renderSubTabEmail(emailTemplates, dealsDb) : ''}
+        ${activeTab === 'quiz' ? renderSubTabQuiz() : ''}
+      </div>
+    </div>
+  `;
+}
+
+function renderSubTabPlanner(plannerDb) {
+  const mits = plannerDb.filter(p => p.isMIT);
+  const others = plannerDb.filter(p => !p.isMIT);
+
+  return `
+    <div class="db-grid-2x animate-fadeIn" style="margin-top: 16px; display: grid; grid-template-columns: 1fr 1.2fr; gap:16px;">
+      <!-- Input Planner Card -->
+      <div class="panel" style="display:flex; flex-direction:column; justify-content:space-between;">
+        <div>
+          <h3 style="font-family: var(--fd); font-size: 15px; font-weight: 700; margin-bottom: 12px; color: var(--indigo-800);">
+            <i class="fa-solid fa-calendar-plus text-indigo-500"></i> Lên Lịch Trình Tác Nghiệp Bán Hàng
+          </h3>
+          
+          <div class="auth-body">
+            <div class="fg" style="margin-bottom:12px;">
+              <label style="font-weight:700;">Nội dung kế hoạch / Tác nghiệp cần hoàn tất *</label>
+              <input type="text" id="planner-task-title" placeholder="Ví dụ: Gọi điện báo giá thương lượng ERP bên VNPT..." style="width:100%;" />
+            </div>
+            
+            <div class="fr2" style="display:flex; gap:12px; margin-bottom:12px;">
+              <div class="fg" style="flex:1;">
+                <label style="font-weight:700;">Giờ thực thi / Nhắc hẹn</label>
+                <input type="text" id="planner-task-time" value="10:00" placeholder="Ví dụ: 10:00, 15:30..." style="width:100%;" />
+              </div>
+              <div class="fg" style="display: flex; align-items: center; justify-content: start; flex:1.2; margin-top:24px;">
+                <label style="display: flex; align-items: center; gap: 6px; cursor: pointer; font-weight: 700; font-size: 12px; margin:0;">
+                  <input type="checkbox" id="planner-task-is-mit" value="1" style="width: auto; margin:0;" />
+                  <span>Việc Cực Kỳ Quan Trọng (MIT) ⭐</span>
+                </label>
+              </div>
+            </div>
+            
+            <button class="btn pr" id="planner-add-task-btn" style="width:100%;">
+              <i class="fa-solid fa-plus"></i> Thêm vào Sổ Daily Planner
+            </button>
+          </div>
+        </div>
+        
+        <div style="margin-top: 24px; font-size: 12px; color: var(--n500); border-top: 1px dashed var(--bd); padding-top: 12px; line-height:1.5;">
+          <p>💡 <strong>Lời khuyên Sáng tạo từ Aura Coach:</strong> Để tối đa tỷ lệ chốt sales, bạn không nên phân bổ quá 3 MITs (Most Important Tasks) mỗi ngày. Tập trung hoàn tất dứt điểm các mục quan trọng trước khi giải quyết việc phát sinh.</p>
+        </div>
+      </div>
+
+      <!-- Planner Lists Display -->
+      <div style="display: flex; flex-direction: column; gap: 16px;">
+        <!-- MIT Part -->
+        <div class="panel" style="border-left: 4px solid var(--amber-500); background-color: #fffbeb;">
+          <h3 style="font-family: var(--fd); font-size: 13.5px; font-weight: 700; margin-bottom: 12px; color: #b45309; display:flex; justify-content:space-between; align-items:center;">
+            <span><i class="fa-solid fa-star text-amber-500 animate-pulse"></i> VIỆC CỰC KỲ QUAN TRỌNG HÔM NAY (MITs)</span>
+            <span class="chip font-mono font-bold" style="background:#fef3c7; color:#b45309; font-size:10px;">${mits.length}/3 ghém</span>
+          </h3>
+          
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            ${mits.length === 0 ? `
+              <div style="padding: 16px; text-align:center; color: #d97706; font-size: 12px; font-style:italic;">
+                Chưa có nhiệm vụ ghim làm MIT ngày hôm nay. Hãy ghim một việc!
+              </div>
+            ` : mits.map(task => `
+              <div style="background: white; border: 1px solid #fde68a; border-radius: var(--rs); padding: 12px; display:flex; justify-content:space-between; align-items:center; box-shadow: 0 1px 3px rgba(0,0,0,0.02);">
+                <div style="display:flex; align-items:center; gap:10px; flex:1;">
+                  <button onclick="window.crmApp.togglePlannerTask('${task.id}')" style="background:none; border:none; padding:4px; font-size:16px; cursor:pointer; color:${task.completed ? '#16a34a' : 'var(--n400)'};">
+                    <i class="${task.completed ? 'fa-solid fa-circle-check' : 'fa-regular fa-circle'}"></i>
+                  </button>
+                  <div>
+                    <span style="${task.completed ? 'text-decoration: line-through; color: var(--n400);' : 'font-weight:700; color:#1e293b;'}; font-size:12.5px;">${esc(task.title)}</span>
+                    <div style="font-size: 10px; color: var(--n500); margin-top:2px;"><i class="fa-solid fa-clock"></i> Thời gian: <span class="tmono" style="font-weight:700;">${task.time}</span></div>
+                  </div>
+                </div>
+                <button class="btn rd sm icon-only" onclick="window.crmApp.deletePlannerTask('${task.id}')" title="Xóa tác vụ" style="background:transparent; border:none; color:var(--rose-600);"><i class="fa-solid fa-trash-can"></i></button>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+
+        <!-- General Schedule -->
+        <div class="panel">
+          <h3 style="font-family: var(--fd); font-size: 13.5px; font-weight: 700; margin-bottom: 12px; color: var(--indigo-800);">
+            <i class="fa-solid fa-business-time text-indigo-500"></i> LỊCH TRÌNH KHÁC & REMINDERS
+          </h3>
+          
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            ${others.length === 0 ? `
+              <div style="padding: 16px; text-align:center; color: var(--n400); font-size: 12px; font-style:italic;">
+                Chưa có lịch trình bổ trợ nào khác. Hãy chuẩn bị tươm tất!
+              </div>
+            ` : others.map(task => `
+              <div style="background: var(--n50); border: 1px solid var(--bd); border-radius: var(--rs); padding: 10px; display:flex; justify-content:space-between; align-items:center;">
+                <div style="display:flex; align-items:center; gap:10px; flex:1;">
+                  <button onclick="window.crmApp.togglePlannerTask('${task.id}')" style="background:none; border:none; padding:4px; font-size:15px; cursor:pointer; color:${task.completed ? '#16a34a' : 'var(--n400)'};">
+                    <i class="${task.completed ? 'fa-solid fa-circle-check' : 'fa-regular fa-circle'}"></i>
+                  </button>
+                  <div>
+                    <span style="${task.completed ? 'text-decoration: line-through; color: var(--n400);' : 'font-weight:500; color:var(--n800);'}; font-size:12.5px;">${esc(task.title)}</span>
+                    <p style="font-size: 10px; color: var(--n400); margin-top:2px;"><i class="fa-solid fa-bell"></i> Sắp nhắc lúc: <span class="tmono">${task.time}</span></p>
+                  </div>
+                </div>
+                <button class="btn rd sm icon-only" onclick="window.crmApp.deletePlannerTask('${task.id}')" title="Xóa tác vụ" style="background:transparent; border:none; color:var(--rose-600);"><i class="fa-solid fa-trash-can"></i></button>
+              </div>
+            `).join('')}
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+const DIAGNOSIS_QUESTIONS = [
+  {
+    q: "Doanh nghiệp xử lý bao nhiêu Leads/Khách hàng tiềm năng hàng tháng?",
+    o: ["Dưới 50 leads (Quy mô nhỏ)", "Từ 50 - 200 leads (Đang tăng trưởng)", "Từ 200 - 1000 leads (Lượng lớn)", "Đại doanh nghiệp > 1000 leads (Khổng lồ)"]
+  },
+  {
+    q: "Thất thoát leads trước khi chốt đơn thường nằm ở khâu nào?",
+    o: ["Bỏ quên liên hệ, không gọi lại kịp", "Không biết lead từ nguồn quảng cáo nào để tối ưu", "Hết hàng hoặc tư vấn sai giá", "Mất kết nối sau khi gửi báo giá thủ công"]
+  },
+  {
+    q: "Quy trình lập Báo giá (Quotation) đang tốn bao lâu thời gian?",
+    o: ["Làm file Excel thủ công mất nửa ngày", "Gặp lỗi sai lệch tính toán điều khoản chiết khấu", "Phê duyệt nội bộ của sếp siêu chậm", "Nhanh chóng nhờ hệ thống tự động hóa"]
+  },
+  {
+    q: "Bao nhiêu phần trăm hóa đơn tài chính bị quá hạn thanh toán / thu hồi nợ trễ nải?",
+    o: ["Từ 5% - 15% (Kiểm soát khá ổn)", "Từ 15% - 30% (Nghiêm trọng, đọng vốn)", "Trên 30% (Nguy khốn dòng tiền thực thu)", "Không nắm được con số chi tiết để theo dõi"]
+  },
+  {
+    q: "Đội ngũ chăm sóc khách hàng / CSKH sau bán xử lý phàn nàn thế nào?",
+    o: ["Qua chat zalo cá nhân, hay bị trôi tin nhắn", "Chưa có cam kết rõ ràng SLA phản hồi sự cố", "Khách hàng thường xuyên phàn nàn phản ứng chậm", "Kiểm soát mượt mà qua hệ thống Ticket tập trung"]
+  },
+  {
+    q: "Sự liên đới phối hợp giữa phòng Marketing, Sales và Support thế nào?",
+    o: ["Độc lập hoàn toàn, dữ liệu cát cứ cát rạn", "Sales đổ lỗi khách kém, Marketing đổ lỗi Sales lười", "Bàn giao dữ liệu thủ công qua Viber/Zalo group", "Liên thông đồng bộ trên 1 nền tảng duy nhất"]
+  },
+  {
+    q: "Khả năng đo lường chỉ số ROI hoạt động tiếp thị quảng cáo?",
+    o: ["Mơ hồ, chỉ tính cảm quan doanh số", "Biết chi phí tổng, không lọc được ROI từng chiến dịch", "Tốn nhiều tuần để tổng hợp báo cáo sếp", "Realtime hoàn toàn qua biểu đồ báo cáo thông minh"]
+  },
+  {
+    q: "Lập kịch bản Email tiếp thị trong doanh nghiệp hiện tại ra sao?",
+    o: ["Kinh doanh viên tự viết tùy tiện", "Copy-paste thô sơ từ file Word chia sẻ", "Chưa có quy chuẩn thư viện email mẫu", "Thư viện email tích hợp tự động phân rã biến số"]
+  },
+  {
+    q: "Ngân sách tối đa dành cho việc số hóa CRM / ERP vận hành năm nay?",
+    o: ["Dưới 50 Triệu VND (Khởi nghiệp tiết kiệm)", "50 Triệu - 200 Triệu VND (Doanh nghiệp vừa và nhỏ)", "200 Triệu - 1 Tỷ VND (Doanh nghiệp quy chuẩn)", "Trên 1 Tỷ VND (Đại tập đoàn tùy biến sâu)"]
+  },
+  {
+    q: "Kế hoạch phân bổ nhân sự quản lý khi đưa phần mềm mới vào?",
+    o: ["Kinh doanh kiêm nhiệm không có chuyên môn", "Yêu cầu thuê ngoài vận hành trọn gói", "Có bộ phận IT / Admin sẵn sàng túc trực tiếp nhận chuyển giao", "Mọi người tự làm tự học không cần quản trị"]
+  }
+];
+
+function renderSubTabDiagnosis(diagnosisAnswers) {
+  const answeredCount = diagnosisAnswers.filter(a => a !== null).length;
+  const isFinished = answeredCount === 10;
+  
+  let resultHtml = '';
+  if (isFinished) {
+    const bigBizCount = diagnosisAnswers.reduce((sum, ansIdx, qIdx) => {
+      if (qIdx === 0 && ansIdx >= 2) return sum + 1;
+      if (qIdx === 8 && ansIdx >= 2) return sum + 1;
+      return sum;
+    }, 0);
+    
+    const csSupportBottlenecks = diagnosisAnswers[4] <= 2 || diagnosisAnswers[5] === 0;
+    
+    let recProduct = 'Aura CRM Core Enterprise Suite';
+    let recPrice = '120000000';
+    let recCode = 'PRO-ERP-2026';
+    let description = 'Hệ sinh thái đồng bộ liên thông phân hệ Leads, Pipeline, Báo Giá, Hóa đơn tài chính, đối chiếu dòng tiền và rà soát nợ phải thu.';
+    
+    if (bigBizCount >= 2) {
+      recProduct = 'Aura Enterprise ERP Cloud Pack';
+      recPrice = '350000000';
+      recCode = 'ENT-CLOUD-ERP';
+      description = 'Đại diện giải pháp ERP tích hợp sâu, tùy biến trường dữ liệu, đồng bộ sổ cái kế toán tự động, lập báo cáo phân phối đa chi nhánh.';
+    } else if (csSupportBottlenecks) {
+      recProduct = 'Aura CS Customer Satisfaction Hub';
+      recPrice = '75000000';
+      recCode = 'AURA-CS-SLA';
+      description = 'Tập trung phân hệ Ticketing hỗ trợ CSKH, kiểm soát SLA cam kết 4h phản hồi, giảm thiểu tin nhắn trôi lạc, thu CSAT chuyên nghiệp.';
+    } else {
+      recProduct = 'Aura CRM Standard Cloud Suite';
+      recPrice = '45000000';
+      recCode = 'AURA-STD-SaaS';
+      description = 'Thích hợp cho đội nhóm vừa và nhỏ, quản lý phễu Kanban mượt mà, email template thư viện tốt, tính toán hóa đơn dư nợ.';
+    }
+
+    resultHtml = `
+      <div class="panel text-slate-800 animate-fadeIn" style="margin-top: 16px; background-color: #f0fdf4; border: 1.5px solid #bbf7d0; border-radius: var(--rs); padding:20px;">
+        <div style="display:flex; justify-content:space-between; align-items:start; border-bottom: 2px solid #bbf7d0; padding-bottom: 12px; margin-bottom: 16px;">
+          <div>
+            <span class="chip font-bold" style="background:#dcfce7; color:#16a34a; font-size:11px; padding: 4px 12px;"><i class="fa-solid fa-circle-check"></i> KẾT QUẢ CHẨN ĐOÁN HOÀN TẤT</span>
+            <h3 style="font-family: var(--fd); font-size:16px; font-weight:850; color:#14532d; margin-top:6px;">Khuyến Nghị Thiết Kế Vận Hành Cho Đối Tác</h3>
+          </div>
+          <button class="btn bl sm" id="diagnosis-reset-btn" style="border-color:#86efac; color:#15803d; font-weight:700;"><i class="fa-solid fa-rotate-left"></i> Chẩn đoán lại</button>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 1fr; gap:20px; align-items:stretch;">
+          <div style="display:flex; flex-direction:column; gap:12px;">
+            <p style="font-size:12.5px; line-height:1.6;">🛡️ <strong>Kịch bản sơ bộ điểm nghẽn:</strong> Dữ liệu tiếp cận của doanh nghiệp hiển thị sự suy hao trong khâu đàm phán gửi báo giá thủ công. Sự phối hợp giữa các khâu còn rời rạc trực trực làm gia tăng chu kỳ deal và thất thoát nợ xấu.</p>
+            
+            <div style="background-color: white; border: 1px solid #dcfce7; border-radius:var(--rs); padding:12px; font-size:11.5px;">
+              <p style="font-weight:700; color:#14532d; margin-bottom:4px;"><i class="fa-solid fa-shield-halved text-emerald-500"></i> Lộ trình chuyển đổi số đề xuất:</p>
+              <ul style="margin-left: 18px; list-style-type: decimal; line-height: 1.6; display:flex; flex-direction:column; gap:4px;">
+                <li>Quy chuẩn phễu Pipeline thành quy trình Kanban tối ưu.</li>
+                <li>Thực thi Email Template Library khớp tự động sáp nhập sáp tắp.</li>
+                <li>Hối thúc nợ hóa đơn liên liên bằng bảng tự tính công nợ.</li>
+                <li>Sử dụng Pre-meeting Quiz bồi dưỡng kinh doanh viên tinh nhuệ.</li>
+              </ul>
+            </div>
+          </div>
+
+          <div style="background-color: white; border: 1.5px solid #86efac; border-radius: var(--rs); padding:16px; display:flex; flex-direction:column; justify-content:space-between; box-shadow: 0 4px 6px rgba(0,0,0,0.02)">
+            <div>
+              <p style="font-size:10px; color:var(--n500); font-weight:700; text-transform:uppercase; letter-spacing:0.5px;">Gói Giải Pháp Phù Hợp Tối Ưu</p>
+              <h4 style="font-family:var(--fd); font-size:16px; font-weight:800; color:var(--indigo-800); margin-top:2px;">${recProduct}</h4>
+              <p style="font-size:11.5px; color:var(--n600); margin-top:4px; line-height:1.5;">${description}</p>
+            </div>
+
+            <div style="border-top:1px dashed #f1f5f9; padding-top:12px; margin-top:16px; display:flex; justify-content:space-between; align-items:center;">
+              <div>
+                <span style="font-size:10px; color:var(--n400); display:block;">Đơn giá cam kết:</span>
+                <strong class="tmono text-emerald-600" style="font-size:15px; font-weight:800;">${fmtVND(parseInt(recPrice))}</strong>
+              </div>
+              <button class="btn pr font-bold" onclick="window.crmApp.convertDiagnosisToQuote('${recCode}', '${esc(recProduct)}', ${recPrice})" style="font-size:11px; padding:6px 12px;"><i class="fa-solid fa-file-invoice-dollar"></i> Tạo Báo Giá Ngay</button>
+            </div>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div style="margin-top: 16px;">
+      ${resultHtml}
+
+      <div class="panel" style="margin-top: 16px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--bd); padding-bottom:12px;">
+          <div>
+            <h3 style="font-family: var(--fd); font-size: 15px; font-weight: 700; color: var(--n800);">
+              <i class="fa-solid fa-clipboard-question text-indigo-500"></i> Khảo sát Chẩn Đoán Điểm Nghẽn & Đề Xuất Sản Phẩm (Pain Point Survey)
+            </h3>
+            <p style="font-size: 11.5px; color: var(--n500); margin-top: 2px;">Vui lòng trả lời 10 câu hỏi để AI phân tích đề xuất gói dịch vụ lý tưởng cấu trúc theo rủi ro của khách.</p>
+          </div>
+          <span class="chip font-bold text-slate-700 font-mono" id="diagnosis-answered-chip" style="background:var(--n100); font-size:11px;">Hoàn thành: ${answeredCount}/10</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          ${DIAGNOSIS_QUESTIONS.map((q, qIdx) => {
+            const chosenValue = diagnosisAnswers[qIdx];
+            return `
+              <div style="background: var(--n50); padding: 12px; border-radius: var(--rs); border: 1.5px solid ${chosenValue !== null ? 'var(--indigo-300)' : 'var(--bd)'};">
+                <p style="font-weight: 700; font-size: 12.5px; color: var(--n850); margin-bottom: 8px;">
+                  <strong class="text-indigo-600">Câu ${qIdx + 1}:</strong> ${esc(q.q)}
+                </p>
+                <div style="font-size: 11.5px; display:grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 8px;">
+                  ${q.o.map((option, oIdx) => {
+                    const isChecked = chosenValue === oIdx;
+                    return `
+                      <label style="display:flex; align-items:center; gap:8px; padding:6px 10px; background: white; border: 1.5px solid ${isChecked ? 'var(--b600)' : 'var(--bd)'}; border-radius:var(--rs); cursor:pointer; font-weight: ${isChecked ? '700' : 'normal'}; transition: all 0.15s ease; margin:0;">
+                        <input type="radio" name="dg-q-${qIdx}" class="diagnosis-radio-btn" data-q-idx="${qIdx}" data-o-idx="${oIdx}" ${isChecked ? 'checked' : ''} style="width: auto; cursor:pointer; margin:0;" />
+                        <span>${esc(option)}</span>
+                      </label>
+                    `;
+                  }).join('')}
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+
+        <div style="margin-top: 24px; display:flex; justify-content:center; gap:12px;">
+          <button class="btn pr font-bold" id="diagnosis-submit-btn" style="padding: 10px 30px; font-size:13.5px;"><i class="fa-solid fa-stethoscope"></i> Bắt đầu Phần tích thuật toán</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderSubTabRoi(roiInputs) {
+  const rev = roiInputs.revenue;
+  const staff = roiInputs.salesStaff;
+  const hours = roiInputs.wasteHours;
+  const salary = roiInputs.salary;
+  const closeRate = roiInputs.closeRate / 100;
+  const dVal = roiInputs.dealValue;
+  const cost = roiInputs.crmCost;
+
+  const savedHoursPerDay = Math.min(hours, 1.5);
+  const totalSavedHoursYearly = Math.round(savedHoursPerDay * staff * 22 * 12);
+  
+  const hourSalaryRate = salary / 176;
+  const timeSavedValueYearly = Math.round(totalSavedHoursYearly * hourSalaryRate);
+
+  const additionalCloseRatePct = closeRate * 0.20;
+  const estimatedDealsProcessedYearly = rev / dVal;
+  const extraDealsClosedYearly = Math.round(estimatedDealsProcessedYearly * additionalCloseRatePct);
+  const additionalRevenueYearly = extraDealsClosedYearly * dVal;
+
+  const totalValueGainedYearly = additionalRevenueYearly + timeSavedValueYearly;
+  const roiPct = Math.round(((totalValueGainedYearly - cost) / cost) * 100);
+  const paybackMonths = Math.round((cost / (totalValueGainedYearly / 12)) * 10) / 10;
+
+  return `
+    <div class="db-grid-2x animate-fadeIn" style="margin-top: 16px; display: grid; grid-template-columns: 1fr 1.2fr; gap:16px;">
+      <!-- Inputs Column -->
+      <div class="panel" style="display:flex; flex-direction:column; gap:12px;">
+        <h3 style="font-family: var(--fd); font-size: 14.5px; font-weight: 700; margin-bottom: 2px; color: var(--n800);">
+          <i class="fa-solid fa-calculator text-indigo-500"></i> Nhập Thông Số Tài Chính Đối Tác
+        </h3>
+        <p style="font-size:11px; color:var(--n500); margin-bottom:12px;">Cài đặt các hằng số mô hình kinh doanh của khách để hiển thị biểu thức ROI.</p>
+
+        <div class="auth-body" style="display:flex; flex-direction:column; gap:10px;">
+          <div class="fg">
+            <label style="font-weight:700;">Tổng Doanh thu Doanh nghiệp / Năm (VND) *</label>
+            <input type="number" id="roi-inp-revenue" value="${rev}" required style="width:100%;" />
+            <span style="font-size:10px; color:var(--b600); font-weight:700;"><i class="fa-solid fa-wallet"></i> Quy đổi: ${fmtVND(rev)}</span>
+          </div>
+
+          <div class="fr2" style="display:flex; gap:12px;">
+            <div class="fg" style="flex:1;">
+              <label style="font-weight:700;">Lương Sales TB (đ/tháng)</label>
+              <input type="number" id="roi-inp-salary" value="${salary}" style="width:100%;" />
+            </div>
+            <div class="fg" style="flex:1;">
+              <label style="font-weight:700;">Tỉ lệ chốt Deals (%)</label>
+              <input type="number" id="roi-inp-closerate" value="${roiInputs.closeRate}" style="width:100%;" />
+            </div>
+          </div>
+
+          <div class="fr2" style="display:flex; gap:12px;">
+            <div class="fg" style="flex:1;">
+              <label style="font-weight:700;">Số nhân sự Sales</label>
+              <input type="number" id="roi-inp-staff" value="${staff}" style="width:100%;" />
+            </div>
+            <div class="fg" style="flex:1;">
+              <label style="font-weight:700;">Hao phí báo biểu/Sales/ngày (h)</label>
+              <input type="number" step="0.1" id="roi-inp-hours" value="${hours}" style="width:100%;" />
+            </div>
+          </div>
+
+          <div class="fg">
+            <label style="font-weight:700;">Giá trị bình quân thương vụ (VND) *</label>
+            <input type="number" id="roi-inp-dealvalue" value="${dVal}" style="width:100%;" />
+            <span style="font-size:10px; color:var(--b600); font-weight:700;">Quy đổi: ${fmtVND(dVal)}</span>
+          </div>
+
+          <div class="fg" style="background-color: var(--n50); padding: 10px; border:1px solid #c7d2fe; border-radius:var(--rs);">
+            <label style="color:var(--indigo-800); font-weight:700;"><i class="fa-solid fa-circle-dollar-to-slot"></i> Chi phí đầu tư Aura CRM đề xuất (VND) *</label>
+            <input type="number" id="roi-inp-crmcost" value="${cost}" style="width:100%;" />
+            <span style="font-size:10px; color:var(--b600); font-weight:700;">Dự toán: ${fmtVND(cost)}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- Outputs Display Column -->
+      <div style="display:flex; flex-direction:column; gap:16px;">
+        <div class="panel" style="background: linear-gradient(135deg, #eff6ff, #dbeafe); border: 1.5px solid #bfdbfe; color:#1e3a8a; display:flex; flex-direction:column; justify-content:space-between; height:100%;">
+          <div>
+            <div style="display:flex; justify-content:space-between; align-items:start; border-bottom:1.5px solid #bfdbfe; padding-bottom:8px; margin-bottom:14px;">
+              <h3 style="font-family: var(--fd); font-size: 14.5px; font-weight: 850; color: #1e3a8a;">
+                <i class="fa-solid fa-award"></i> THẨM ĐỊNH HIỆU QUẢ HOÀN VỐN (ROI REPORT)
+              </h3>
+              <span class="chip font-bold uppercase font-mono" style="background:#bfdbfe; color:#1e3a8a; font-size:9.5px;">Biểu đồ dự toán tài khóa</span>
+            </div>
+
+            <!-- Bento Metrics -->
+            <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px;">
+              <div style="background:white; padding:10px; border-radius:var(--rs); border:1px solid #bfdbfe;">
+                <span style="font-size:10px; color:#1e3a8a; display:block;">Thời gian Sales giải phóng:</span>
+                <strong style="font-size:14.5px; font-weight:800; color:#2563eb;" class="tmono">${totalSavedHoursYearly.toLocaleString()} giờ / năm</strong>
+                <span style="font-size:8.5px; color:var(--n500); display:block; margin-top:2px;">~${Math.round(savedHoursPerDay * 22)} tiếng/sales/tháng</span>
+              </div>
+
+              <div style="background:white; padding:10px; border-radius:var(--rs); border:1px solid #bfdbfe;">
+                <span style="font-size:10px; color:#1e3a8a; display:block;">Giá trị thời gian phục dựng:</span>
+                <strong style="font-size:14.5px; font-weight:800; color:#16a34a;" class="tmono">${fmtVND(timeSavedValueYearly)}</strong>
+                <span style="font-size:8.5px; color:var(--n500); display:block; margin-top:2px;">Quy chuẩn theo quỹ lương phòng</span>
+              </div>
+
+              <div style="background:white; padding:10px; border-radius:var(--rs); border:1px solid #bfdbfe; grid-column: span 2;">
+                <span style="font-size:10.5px; color:#1e3a8a; display:block;">Doanh thu thăng tiến thêm (Tăng trưởng tỷ lệ chốt sales 20%):</span>
+                <strong style="font-size:16.5px; font-weight:800; color:#059669;" class="tmono">+ ${fmtVND(additionalRevenueYearly)}</strong>
+                <span style="font-size:9px; color:var(--n500); display:block; margin-top:2px;">Nhờ tự động hóa quy trình, sales chốt thêm <strong class="text-emerald-600">${extraDealsClosedYearly} deals</strong> thắng</span>
+              </div>
+            </div>
+
+            <!-- ROI and Payback Period -->
+            <div style="display:grid; grid-template-columns:1.2fr 1fr; gap:12px; margin-top:16px;">
+              <div style="background: linear-gradient(135deg, #059669, #047857); color:white; padding:12px; border-radius:var(--rs); box-shadow: 0 4px 10px rgba(4,120,87,0.15); text-align:center;">
+                <span style="font-size:9px; opacity:0.8; display:block;">TỶ SUẤT SINH LỜI SẢN PHẨM (ROI)</span>
+                <strong style="font-size:24px; font-weight:900;" class="tmono">${roiPct}%</strong>
+                <span style="font-size:8.5px; opacity:0.8; display:block; margin-top:2px;">Doanh thu dôi ra vượt chi đầu tư</span>
+              </div>
+
+              <div style="background:#1e3a8a; color:white; padding:12px; border-radius:var(--rs); text-align:center;">
+                <span style="font-size:9px; opacity:0.8; display:block;">DỰ TÍNH HÒA VỐN SAU</span>
+                <strong style="font-size:22px; font-weight:800;" class="tmono">${paybackMonths} tháng</strong>
+                <span style="font-size:8.5px; opacity:0.8; display:block; margin-top:2px;">Thời điểm thu hồi vốn ròng</span>
+              </div>
+            </div>
+          </div>
+
+          <div style="border-top:1px dashed #bfdbfe; padding-top:12px; margin-top:16px; display:flex; justify-content:space-between; align-items:center;">
+            <p style="font-size:10px; color:#475569; width: 60%; line-height:1.4;">Chắp cánh sales thuyết phục đại hội đồng cổ đông phê duyệt.</p>
+            <button class="btn pr font-bold" onclick="window.print()" style="background:#1e3a8a; border-color:#1e3a8a; color:white; font-size:10.5px; padding: 4px 10px;"><i class="fa-solid fa-print"></i> In Thẩm Định ROI</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderSubTabEmail(emailTemplates, dealsDb) {
+  const catFilter = window.EMAIL_TPL_FILTER_CAT || 'all';
+  const dtypeFilter = window.EMAIL_TPL_FILTER_DEAL_TYPE || 'all';
+
+  // Filter templates list based on stage and deal type segmentations
+  const filteredTemplates = emailTemplates.filter(tpl => {
+    const matchesCat = (catFilter === 'all' || tpl.category === catFilter);
+    const matchesDtype = (dtypeFilter === 'all' || tpl.dealType === 'all' || !tpl.dealType || tpl.dealType === dtypeFilter);
+    return matchesCat && matchesDtype;
+  });
+
+  const curTplId = window.ACTIVE_TPL_ID || (filteredTemplates[0] ? filteredTemplates[0].id : '');
+  let activeTpl = filteredTemplates.find(t => t.id === curTplId);
+  if (!activeTpl && filteredTemplates.length > 0) {
+    activeTpl = filteredTemplates[0];
+  }
+
+  const selectedDealId = window.ACTIVE_TPL_DEAL_ID || (dealsDb[0] ? dealsDb[0].id : '');
+  const selectedDeal = dealsDb.find(d => d.id === selectedDealId) || dealsDb[0];
+
+  let resolvedSubject = activeTpl ? activeTpl.subject : '';
+  let resolvedBody = activeTpl ? activeTpl.body : '';
+
+  if (activeTpl && selectedDeal) {
+    const formatDealVal = selectedDeal.value ? fmtVND(selectedDeal.value) : (selectedDeal.amount ? fmtVND(selectedDeal.amount) : '0 ₫');
+    
+    const reps = {
+      '{{KHÁCH_HÀNG}}': selectedDeal.contactName || 'Quý Đối tác',
+      '{{TÊN_DOANH_NGHIỆP}}': selectedDeal.company || 'Doanh nghiệp liên kết',
+      '{{TÊN_DEAL}}': selectedDeal.name || 'Gói giải pháp doanh nghiệp',
+      '{{GIÁ_TRỊ_DEAL}}': formatDealVal,
+      '{{HẠN_CHỐT}}': selectedDeal.closureDate || '30/06/2026',
+      '{{SỐ_HÓA_ĐƠN}}': 'HD-2026-0038',
+      '{{HẠN_THANH_TOÁN}}': '30/06/2026',
+      '{{TÊN_SALES}}': 'Đặng Việt Triều (Sales Rep)'
+    };
+
+    for (const [ph, val] of Object.entries(reps)) {
+       resolvedSubject = resolvedSubject.replaceAll(ph, val);
+       resolvedBody = resolvedBody.replaceAll(ph, val);
+    }
+  }
+
+  return `
+    <div class="db-grid-2x animate-fadeIn" style="margin-top: 16px; display: grid; grid-template-columns: 1fr 1.3fr; gap:16px;">
+      <!-- Templates Selection -->
+      <div class="panel" style="display:flex; flex-direction:column; gap:12px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1px solid var(--bd); padding-bottom:8px; margin-bottom:4px;">
+          <h3 style="font-family: var(--fd); font-size: 14px; font-weight: 700; color: var(--indigo-950);">
+            <i class="fa-solid fa-folder-open text-indigo-500"></i> Thư Viện Mẫu Email Bán Hàng
+          </h3>
+          <button class="btn pr xs font-bold" id="email-add-tpl-btn" style="padding:4px 8px; font-size:10.5px;"><i class="fa-solid fa-plus"></i> Thêm Mẫu Mới</button>
+        </div>
+
+        <!-- Interactive Advanced Filters -->
+        <div style="background-color: var(--n50); padding: 10px; border-radius: var(--rs); display: flex; flex-direction: column; gap: 8px; border: 1px solid var(--bd-dim, var(--bd));">
+          <!-- Category Filter Bar -->
+          <div>
+            <span style="font-size: 9.5px; font-weight: 750; color: var(--n500); text-transform: uppercase; display: block; margin-bottom: 4px;"><i class="fa-solid fa-route text-indigo-500"></i> Lọc Giai đoạn / Giao dịch:</span>
+            <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+              ${[
+                { value: 'all', label: 'Tất cả' },
+                { value: 'intro', label: 'Tiếp cận/Intro' },
+                { value: 'quote', label: 'Báo giá/Proposal' },
+                { value: 'invoice', label: 'VAT/Nợ' },
+                { value: 'care', label: 'Chăm sóc' }
+              ].map(opt => {
+                const isSelected = catFilter === opt.value;
+                return `<button class="btn ${isSelected ? 'pr' : 'bl'} xs" onclick="window.crmApp.setEmailTemplateFilters('${opt.value}', undefined)" style="font-size:9.5px; padding:2px 6px; font-weight:700;">${opt.label}</button>`;
+              }).join('')}
+            </div>
+          </div>
+          
+          <!-- Deal segment / Customer Type Filter Bar -->
+          <div style="border-top: 1px dashed var(--bd); padding-top: 6px;">
+            <span style="font-size: 9.5px; font-weight: 750; color: var(--n500); text-transform: uppercase; display: block; margin-bottom: 4px;"><i class="fa-solid fa-tags text-amber-500"></i> Phân khúc khách hàng:</span>
+            <div style="display: flex; gap: 4px; flex-wrap: wrap;">
+              ${[
+                { value: 'all', label: 'Tất cả phân khúc' },
+                { value: 'b2b', label: 'B2B Doanh nghiệp' },
+                { value: 'b2c', label: 'B2C Khách lẻ' }
+              ].map(opt => {
+                const isSelected = dtypeFilter === opt.value;
+                return `<button class="btn ${isSelected ? 'pr' : 'bl'} xs" onclick="window.crmApp.setEmailTemplateFilters(undefined, '${opt.value}')" style="font-size:9.5px; padding:2px 6px; font-weight:700;">${opt.label}</button>`;
+              }).join('')}
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px; max-height: 480px; overflow-y: auto; padding-right:4px;">
+          ${filteredTemplates.length === 0 ? `
+            <div style="padding:32px 16px; text-align:center; color:var(--n400); background: var(--n50); border: 1px dashed var(--bd); border-radius: var(--rs); font-size:11.5px; line-height:1.5;">
+              <div style="font-size:26px; margin-bottom:8px;">📥</div>
+              Chưa có mẫu Email nào khớp với các bộ lọc phân khúc đã chọn.<br/>
+              <span class="text-indigo-500 cursor-pointer font-bold" onclick="window.crmApp.setEmailTemplateFilters('all', 'all')">Huỷ lọc</span> hoặc nhấp <strong class="text-indigo-600 font-bold">"Thêm Mẫu Mới"</strong> để kiến tạo!
+            </div>
+          ` : filteredTemplates.map(tpl => {
+            const isActive = activeTpl && tpl.id === activeTpl.id;
+            let catBadge = '';
+            if (tpl.category === 'intro') catBadge = '<span class="chip bl" style="font-size:8px;">TIẾP CẬN</span>';
+            if (tpl.category === 'quote') catBadge = '<span class="chip gr" style="font-size:8px;">BÁO GIÁ</span>';
+            if (tpl.category === 'invoice') catBadge = '<span class="chip rd" style="font-size:8px;">VAT/NỢ</span>';
+            if (tpl.category === 'care') catBadge = '<span class="chip gy" style="font-size:8px;">CHĂM SÓC</span>';
+
+            let dtypeBadge = '';
+            if (tpl.dealType === 'b2b') dtypeBadge = '<span class="chip pu" style="font-size:8px; border-color:#8b5cf6;"><i class="fa-solid fa-building"></i> B2B VP</span>';
+            else if (tpl.dealType === 'b2c') dtypeBadge = '<span class="chip am" style="font-size:8px; border-color:#f59e0b;"><i class="fa-solid fa-user-shield"></i> B2C Lẻ</span>';
+            else dtypeBadge = '<span class="chip sl" style="font-size:8px;"><i class="fa-solid fa-globe"></i> Chung</span>';
+
+            return `
+              <div class="tpl-item" onclick="window.crmApp.selectEmailTemplate('${tpl.id}')" style="padding:10px; border-radius:var(--rs); border:1.5px solid ${isActive ? 'var(--b600)' : 'var(--bd)'}; background:${isActive ? 'var(--b50)' : 'white'}; cursor:pointer; display:flex; flex-direction:column; gap:4px; box-shadow: 0 1px 3px rgba(0,0,0,0.02); transition: all 0.1s ease-in-out;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <strong style="font-size:11.5px; color:${isActive ? 'var(--b700)' : 'var(--n850)'}">${esc(tpl.name)}</strong>
+                  <div style="display:flex; gap:3px; align-items:center;">
+                    ${catBadge}
+                    ${dtypeBadge}
+                  </div>
+                </div>
+                <p style="font-size:10px; color:var(--n500); text-overflow:ellipsis; overflow:hidden; white-space:nowrap; margin:0;" title="${esc(tpl.subject)}">Chủ đề: ${esc(tpl.subject)}</p>
+                
+                <!-- Customize Actions inside Card -->
+                <div style="display:flex; justify-content:flex-end; gap:6px; margin-top:4px; border-top:1px dashed var(--bd); padding-top:6px;">
+                  <button class="btn gy xs font-bold" onclick="event.stopPropagation(); window.crmApp.editEmailTemplate('${tpl.id}')" style="font-size:9.5px; padding:2px 6px; display:inline-flex; align-items:center; gap:2px;"><i class="fa-solid fa-pen"></i> Chỉnh sửa</button>
+                  <button class="btn rd xs icon-only" onclick="event.stopPropagation(); window.crmApp.deleteEmailTemplate('${tpl.id}')" title="Xóa mẫu thư" style="padding:2px 6px; font-size:9.5px;"><i class="fa-solid fa-trash-can"></i></button>
+                </div>
+              </div>
+            `;
+          }).join('')}
+        </div>
+      </div>
+
+      <!-- Preview Panel -->
+      <div class="panel" style="display:flex; flex-direction:column; gap:12px;">
+        <h3 style="font-family: var(--fd); font-size: 14px; font-weight: 700; color: var(--indigo-950); border-bottom:1px solid var(--bd); padding-bottom:8px;">
+          <i class="fa-solid fa-envelope-open text-indigo-500"></i> Trình Khớp Biến Số Email Thực Tế Theo Thương Vụ
+        </h3>
+
+        <!-- Match with direct real Deal database link -->
+        <div class="fg" style="margin-bottom:8px;">
+          <label style="font-weight:700; display:block; margin-bottom:4px; font-size:11px; color:var(--n700);"><i class="fa-solid fa-handshake"></i> Chọn một Thương vụ hoặc Khách hàng cụ thể dồi dào:</label>
+          <select id="email-deal-selector" class="tmono font-bold text-slate-800" onchange="window.crmApp.selectEmailMatchedDeal(this.value)" style="padding: 8px; border-radius:var(--rs); border:1px solid var(--bd); width:100%; font-size:12px;">
+            ${dealsDb.map(d => {
+              const val = d.value || d.amount || 0;
+              return `<option value="${d.id}" ${d.id === selectedDealId ? 'selected' : ''}>[${d.dealType === 'b2c' ? 'B2C Lẻ' : 'B2B Corp'}] ${esc(d.name)} &middot; Khách: ${esc(d.contactName)} (${fmtVND(val)})</option>`;
+            }).join('')}
+          </select>
+        </div>
+
+        <div style="background-color: var(--n50); border:1px solid var(--bd); border-radius:var(--rs); padding:16px;">
+          <div style="display:flex; flex-direction:column; gap:8px;">
+            <div style="display:flex; border-bottom:1px solid var(--bd); padding-bottom:6px; font-size:12px; align-items:center;">
+              <span style="color:var(--n500); width:100px; font-weight:700;">CHỦ ĐỀ CHUẨN:</span>
+              <input type="text" id="email-resolved-subject-box" value="${esc(resolvedSubject)}" style="background:white; font-weight:700; color:var(--indigo-800); border:1px solid var(--bd); padding:4px 8px; border-radius:4px; flex:1; font-size:12px;" />
+            </div>
+            
+            <div style="margin-top:6px;">
+              <span style="color:var(--n500); font-weight:700; font-size:11px; display:block; margin-bottom:4px;">NỘI DUNG THƯ (Người dùng có thể trực tiếp tinh chỉnh tự do tại đây trước khi copy hoặc gửi):</span>
+              <textarea id="email-resolved-body-box" rows="11" style="width:100%; padding:10px; border:1px solid var(--bd); border-radius:4px; font-family:var(--fm); font-size:12px; line-height:1.6; color:var(--n850); background:white; font-weight: normal;">${esc(resolvedBody)}</textarea>
+            </div>
+          </div>
+        </div>
+
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-top:6px; flex-wrap:wrap; gap:8px;">
+          <div style="font-size:10px; color:var(--n500); line-height:1.4;">
+            Các biến tự động khả dụng: <code>{{KHÁCH_HÀNG}}</code>, <code>{{TÊN_DOANH_NGHIỆP}}</code>, <code>{{TÊN_DEAL}}</code>, <code>{{GIÁ_TRỊ_DEAL}}</code>, <code>{{TÊN_SALES}}</code>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button class="btn bl font-bold animate-pulse" id="email-mock-send-btn" onclick="window.crmApp.mockSendEmail()" style="border-color:var(--green); color:var(--green); font-size:11px; padding:6px 12px;"><i class="fa-solid fa-paper-plane"></i> Gửi Thử (Mock Send)</button>
+            <button class="btn pr font-bold" id="email-copy-btn" onclick="window.crmApp.copyEmailToClipboard()" style="font-size:11px; padding:6px 12px;"><i class="fa-solid fa-copy"></i> Sao chép Email</button>
+          </div>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+const PREMEETING_QUIZ_QUESTIONS = [
+  {
+    q: "Trước khi bắt đầu cuộc họp, bước quan trọng nhất để thu thập lợi thế đàm판 là?",
+    o: [
+      "Chỉ cần nắm tên và ngành nghề là đủ",
+      "Nghiên cứu kỹ Pain Point, lịch sử trao đổi và sản phẩm cốt lõi của họ",
+      "Không cần chuẩn bị, dựa vào tài hùng biện tại chỗ",
+      "Chuẩn bị sẵn slide giới thiệu dịch vụ chung mà không thay đổi bất kỳ trường hợp nào"
+    ],
+    ans: 1,
+    exp: "Nghiên cứu trước Pain Points và lịch sử giúp định vị Aura một cách hoàn hảo, bộc lộ lợi thế thâm căn đàm phán."
+  },
+  {
+    q: "Khi khách hàng lập tức chê chi phí Aura đắt đỏ ngay từ phút đầu, nòng cốt phản xạ là gì?",
+    o: [
+      "Ngay lập tức hứa hẹn giảm trừ 50% để giữ chân bằng mọi giá",
+      "Lập tức tranh luận nảy lửa thách đố hoặc thanh minh chính sách",
+      "Trụ vững, liên tục quay lại Pain Points và chứng tỏ ROI Aura tiết kiệm đống tiền ra sao để bù đắp trị giá",
+      "Đột ngột im lặng chuyển giao sếp giải cứu"
+    ],
+    ans: 2,
+    exp: "Tránh lạm dụng chiết khấu sớm; chứng tỏ ROI tài khóa Aura CRM mới là liều thuốc thăng tiến dứt trị điểm nghẽn của vị doanh chủ."
+  },
+  {
+    q: "Để bảo vệ tính minh bạch kịch bản, làm gì khi khách hỏi một tính năng sâu mà bạn chưa dám chắc?",
+    o: [
+      "U úơ nói đại là có hoàn hảo để chốt kèo trước rồi đổ thừa IT sau",
+      "Dìm tính năng đó bảo không thiết thực",
+      "Nói trung thực là sẽ xác minh chi tiết kèm IT giải đáp bằng văn bản trong vòng 2 giờ",
+      "Từ chối thẳng thừng làm cụt hứng dòng thương thảo"
+    ],
+    ans: 2,
+    exp: "Cam kết phản hồi nhanh (SLA) bộc lộ sự đáng tin cậy cao của văn hóa doanh nghiệp Aura."
+  },
+  {
+    q: "Nhiệm vụ tối thượng hàng đầu của cuộc gặp mặt sơ bộ giới thiệu (Intro Meeting)?",
+    o: [
+      "Ép khách hàng thanh toán tiền mặt 100% tươi ngay lập tức",
+      "Chốt lịch hẹn thực chứng sâu hơn (Deep Demo) hoặc tiến trình kích hoạt dùng thử có mục tiêu rõ rệt",
+      "Nói chuyện phiếm ngẫu nhiên không có hành động cụ thể",
+      "Mời khách hàng đi cà phê liên hoan hữu nghị"
+    ],
+    ans: 1,
+    exp: "Thương vụ bước đi từng nấc thang; do đó, chốt chặn bước chuyển giao thực chứng (Sáp nhập Demo/Dùng thử) là thành quả cốt lõi của buổi gặp đầu."
+  },
+  {
+    q: "Mức chiết khấu tối đa mà bạn có thẩm quyền phê duyệt nốt cho một deal khẩn cấp là?",
+    o: [
+      "Bao nhiêu phần trăm cũng được, tự sướng chốt rồi tính",
+      "Tuyệt đối tuân thủ chính sách cam kết sớm tối đa 10% theo quy chuẩn sếp ký",
+      "Cam kết ảo 40% rồi bùng lụi",
+      "Không áp dụng bất cứ chính sách nào để tỏ vẻ kiêu kỳ"
+    ],
+    ans: 1,
+    exp: "Kỷ cương chiết khấu chặn đứng cơn lỗ sâu dòng tiền, minh chứng chuẩn mực đạo đức kinh doanh."
+  }
+];
+
+function renderSubTabQuiz() {
+  if (!window.QUIZ_ACTIVE_ANSWERS) {
+    window.QUIZ_ACTIVE_ANSWERS = Array(5).fill(null);
+  }
+  
+  const answers = window.QUIZ_ACTIVE_ANSWERS;
+  const answeredCount = answers.filter(a => a !== null).length;
+  const isEvaluated = window.QUIZ_IS_EVALUATED || false;
+  const quizScore = window.QUIZ_SCORE || 0;
+
+  let feedbackHtml = '';
+  if (isEvaluated) {
+    let feedbackLevel = 'Cơ bản (Rookie)';
+    let badgeClass = 'chip gy';
+    let feedbackDesc = 'Hãy đọc kỹ lại bộ kịch bản Aura Playbook, học sâu cách làm rõ ROI tài khóa để thuyết phục đại doanh của đối tác.';
+    
+    if (quizScore === 100) {
+      feedbackLevel = 'Chuyên Gia Thực Chiến (Elite Negotiator) 🏆';
+      badgeClass = 'chip gr';
+      feedbackDesc = 'Tuyệt vời vô song! Bạn hoàn toàn sẵn sàng bước vào sàn đàm phán chốt hợp đồng Aura CRM.';
+    } else if (quizScore >= 80) {
+      feedbackLevel = 'Nhân Sự Bản Lĩnh (Pro Negotiator) ⭐';
+      badgeClass = 'chip bl';
+      feedbackDesc = 'Rất đáng khen! Bạn nắm vững phong thái chắp nối ROI đàm phán, chỉ cần mài giũa chút tính phản xạ.';
+    }
+
+    feedbackHtml = `
+      <div class="panel text-slate-800 animate-fadeIn" style="margin-top: 16px; background-color: #f0fdf4; border: 1.5px solid #86efac; border-radius: var(--rs); padding:20px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; border-bottom:1.5px solid #86efac; padding-bottom:8px; margin-bottom:12px;">
+          <h3 style="font-family: var(--fd); font-size:15px; font-weight:800; color:#14532d;"><i class="fa-solid fa-circle-check"></i> ĐÁNH GIÁ SỰ SẴN SÀNG ĐÀM PHÁN</h3>
+          <button class="btn bl sm" onclick="window.crmApp.resetQuizState()" style="border-color:#86efac; color:#15803d; font-weight:700;"><i class="fa-solid fa-rotate-left"></i> Làm lại bài kiểm tra</button>
+        </div>
+
+        <div style="display:grid; grid-template-columns: 1fr 2fr; gap:20px; align-items:center;">
+          <div style="text-align:center; padding: 16px; background:white; border-radius:var(--rs); border:1px solid #86efac; display:flex; flex-direction:column; justify-content:center; align-items:center; box-shadow: 0 4px 6px rgba(0,0,0,0.02)">
+            <p style="font-size:10px; color:#475569; font-weight: bold; text-transform:uppercase; margin-bottom:4px;">Tổng Điểm Chuẩn Bị</p>
+            <strong style="font-size:36px; font-weight:900; color:${quizScore >= 80 ? '#16a34a' : '#d97706'}; font-family:var(--fd);" class="tmono">${quizScore} / 100</strong>
+            <span class="${badgeClass} uppercase font-bold" style="font-size:10px; display:inline-block; margin-top:6px; padding: 4px 8px;">${feedbackLevel}</span>
+          </div>
+
+          <div>
+            <p style="font-size:12.5px; line-height:1.6; color:#1e293b; margin:0;"><strong>Lời khuyên từ CEO Aura CRM:</strong> ${feedbackDesc}</p>
+            <p style="font-size:11px; color:#475569; margin-top:6px; line-height:1.4;"><i class="fa-solid fa-circle-info text-blue-500"></i> Bài kiểm tra gồm 5 tình huống đàm phán then chốt giúp loại bỏ 25% rủi ro đàm phán vụng về cho sales mới.</p>
+          </div>
+        </div>
+      </div>
+    `;
+  }
+
+  return `
+    <div style="margin-top: 16px;">
+      ${feedbackHtml}
+
+      <div class="panel">
+        <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:16px; border-bottom:1px solid var(--bd); padding-bottom:12px;">
+          <div>
+            <h3 style="font-family: var(--fd); font-size: 15px; font-weight: 700; color: var(--n800);">
+              <i class="fa-solid fa-graduation-cap text-indigo-500"></i> Sales Pre-Meeting Preparedness Quiz (Trắc nghiệm chuẩn bị trước cuộc họp)
+            </h3>
+            <p style="font-size: 11.5px; color: var(--n500); margin-top: 2px;">Vượt qua 5 câu trắc nghiệm bắt buộc để củng cố tư duy đàm phán xuất chúng của Aura.</p>
+          </div>
+          <span class="chip font-bold text-slate-700 font-mono" id="quiz-answered-chip" style="background:var(--n100); font-size:11px;">Hoàn thành: ${answeredCount}/5</span>
+        </div>
+
+        <div style="display: flex; flex-direction: column; gap:16px;">
+          ${PREMEETING_QUIZ_QUESTIONS.map((q, qIdx) => {
+            const chosenValue = answers[qIdx];
+            return `
+              <div style="background: var(--n50); padding: 12px; border-radius: var(--rs); border: 1px solid ${chosenValue !== null ? 'var(--b200)' : 'var(--bd)'};">
+                <p style="font-weight: 700; font-size: 12.5px; color: var(--n900); margin-bottom: 8px;">
+                  <strong class="text-indigo-600">Câu ${qIdx + 1}:</strong> ${esc(q.q)}
+                </p>
+                <div style="font-size: 11.5px; display:flex; flex-direction:column; gap:6px;">
+                  ${q.o.map((option, oIdx) => {
+                    const isChecked = chosenValue === oIdx;
+                    return `
+                      <label style="display:flex; align-items:center; gap:8px; padding:6px 10px; background: white; border: 1px solid ${isChecked ? 'var(--b600)' : 'var(--bd)'}; border-radius:var(--rs); cursor:pointer; font-weight: ${isChecked ? '700' : 'normal'}; transition: all 0.15s ease; margin:0;">
+                        <input type="radio" name="qz-q-${qIdx}" class="quiz-radio-btn" data-q-idx="${qIdx}" data-o-idx="${oIdx}" ${isChecked ? 'checked' : ''} style="width: auto; cursor:pointer; margin:0;" />
+                        <span>${esc(option)}</span>
+                      </label>
+                    `;
+                  }).join('')}
+                </div>
+                ${isEvaluated ? `
+                  <div style="margin-top:10px; font-size:11px; padding:8px; border-radius:var(--rs); background-color:${chosenValue === q.ans ? '#f0fdf4; border: 1px solid #bbf7d0; color: #16a34a;' : '#fff1f2; border: 1px solid #fecdd3; color: #e11d48;'}">
+                    <span>${chosenValue === q.ans ? '✓ Thực tế chứng minh chính xác!' : `✗ Nhận thức lệch. Đúng chuẩn là: <strong>${esc(q.o[q.ans])}</strong>`}</span>
+                    <p style="color:var(--n600); margin-top:4px; line-height:1.4;">Phân tích bổ trợ: ${esc(q.exp)}</p>
+                  </div>
+                ` : ''}
+              </div>
+            `;
+          }).join('')}
+        </div>
+
+        <div style="margin-top: 24px; display:flex; justify-content:center;">
+          <button class="btn pr font-bold" id="quiz-submit-btn" style="padding: 10px 30px; font-size:13.5px;"><i class="fa-solid fa-graduation-cap"></i> Gửi Đáp Án Chấm Điểm</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+export function renderMcnaFunnelPage(activeSimTab = 't1') {
+  const b2bLeads = LEADS_DB.filter(l => l.leadType === 'b2b');
+  const b2cLeads = LEADS_DB.filter(l => l.leadType === 'b2c');
+  const totalDeals = DEALS_DB.length;
+  const closedWon = DEALS_DB.filter(d => d.stage === 'closed_won').length;
+  const conversionRate = totalDeals > 0 ? Math.round((closedWon / totalDeals) * 100) : 0;
+  
+  // Calculate some anomalies for Tier 5 live radar
+  const hasSpikeAnomaly = conversionRate > 65;
+  const activeAlerts = [];
+  if (hasSpikeAnomaly) {
+    activeAlerts.push({
+      id: 'al-1',
+      title: 'ĐỘT BIẾN TỶ LỆ CHUYỂN ĐỔI (CONVERSION SPIKE)',
+      detail: `Tỉ lệ chốt deal (Closed Won / Total Deals) đạt ngưỡng bất thường ${conversionRate}% (Ngưỡng an toàn < 55%)`
+    });
+  }
+  
+  const rapidEditsCount = AUDIT_LOG_DB.filter(l => l.action.toLowerCase().includes('cập nhật')).length;
+  if (rapidEditsCount > 12) {
+    activeAlerts.push({
+      id: 'al-2',
+      title: 'TẦN SUẤT THAY ĐỔI TRẠNG THÁI CAO (ANOMALY DETECTED)',
+      detail: 'Hệ thống quét thấy nhiều hành vi ghi chú và thay đổi giai đoạn liên tục trong thời gian ngắn (Cảnh báo nguy cơ Spam/Tampering)'
+    });
+  }
+
+  return `
+    <div class="page-container animate-fadeIn">
+      <!-- Top Overview Jumbotron -->
+      <div class="panel" style="background: linear-gradient(135deg, #4c1d95, #1e3a8a); color: white; border: none; padding: 16px 20px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 16px;">
+        <div>
+          <h2 style="font-family: var(--fd); font-size: 20px; font-weight: 800; margin: 0; color: white;"><i class="fa-solid fa-network-wired text-purple-300"></i> HỆ THỐNG PHỄU KINH DOANH MCNA 5 TẦNG & LIVE SIMULATOR</h2>
+          <p style="font-size: 13px; color: rgba(255,255,255,0.85); margin-top: 4px;">Quy chuẩn hóa hành trình khách hàng từ Awareness (Tím), Lead (Xanh dương), Sales (Xanh ngọc), tới Payment (Xanh lá) dựa trên lớp giám sát an ninh dữ liệu Control Layer (Đỏ).</p>
+        </div>
+        <div style="display: flex; gap: 12px;">
+          <div style="background: rgba(255,255,255,0.1); padding: 8px 12px; border-radius: var(--rs); text-align: center; border: 1px solid rgba(255,255,255,0.15);">
+            <div style="font-size: 10px; text-transform: uppercase; color: rgba(255,255,255,0.7); font-weight: 700;">Leads B2B/B2C</div>
+            <div style="font-size: 16px; font-weight: 800; font-family: var(--fm);" class="text-purple-200">${b2bLeads.length} / ${b2cLeads.length}</div>
+          </div>
+          <div style="background: rgba(255,255,255,0.1); padding: 8px 12px; border-radius: var(--rs); text-align: center; border: 1px solid rgba(255,255,255,0.15);">
+            <div style="font-size: 10px; text-transform: uppercase; color: rgba(255,255,255,0.7); font-weight: 700;">Tỉ lệ quy đổi</div>
+            <div style="font-size: 16px; font-weight: 800; font-family: var(--fm);" class="text-amber-300">${conversionRate}%</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Main Layout -->
+      <div style="display: grid; grid-template-columns: 1.1fr 1fr; gap: 16px; margin-top: 16px; align-items: start;">
+        
+        <!-- Left Side: Interactive SVG Funnel Diagram -->
+        <div class="panel" style="padding: 16px;">
+          <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 12px;">
+            <h3 style="font-family: var(--fd); font-size: 14px; font-weight: 800; margin: 0; color: var(--n800);"><i class="fa-solid fa-diagram-project text-indigo-500"></i> Bản đồ Quy Trình Vận Hành 5 Layer</h3>
+            <span class="chip font-bold" style="background: rgba(16,185,129,0.1); color: #059669; font-size: 10.5px;"><i class="fa-solid fa-circle-check"></i> Trạng thái: Live & Sync</span>
+          </div>
+
+          <!-- Dynamic Funnel SVG -->
+          <div style="background: var(--n50); padding: 12px; border-radius: var(--rs); border: 1px solid var(--bd); text-align: center; position: relative;">
+            <svg viewBox="0 0 400 370" width="100%" style="max-height: 350px;">
+              <!-- Tier 1: Awareness Purple -->
+              <polygon points="40,20 360,20 320,80 80,80" fill="#a78bfa" stroke="#6d28d9" stroke-width="2" style="cursor: pointer;" onclick="window.crmApp.switchSimTab('t1')"/>
+              <text x="200" y="44" fill="#4c1d95" font-family="sans-serif" font-size="12" font-weight="bold" text-anchor="middle" pointer-events="none">TẦNG 1: AWARENESS (TIẾP CẬN MARKETING)</text>
+              <text x="200" y="62" fill="#5c21b6" font-family="sans-serif" font-size="9" text-anchor="middle" pointer-events="none">Form Capture (Tên, SĐT, Email, Nhu cầu, Nguồn) &middot; ADS / EVENT</text>
+
+              <!-- Tier 2: Lead Blue -->
+              <polygon points="84,85 316,85 280,145 120,145" fill="#93c5fd" stroke="#1d4ed8" stroke-width="2" style="cursor: pointer;" onclick="window.crmApp.switchSimTab('t2')"/>
+              <text x="200" y="108" fill="#1e3a8a" font-family="sans-serif" font-size="12" font-weight="bold" text-anchor="middle" pointer-events="none">TẦNG 2: LEADS (SÀNG LỌC & PHÂN BỔ)</text>
+              <text x="200" y="126" fill="#172554" font-family="sans-serif" font-size="9" text-anchor="middle" pointer-events="none">Auto Lead Scoring (Hot/Warm/Cold) &middot; Auto-routing cho Sales</text>
+
+              <!-- Tier 3: Sales Teal -->
+              <polygon points="124,150 276,150 240,210 160,210" fill="#99f6e4" stroke="#0f766e" stroke-width="2" style="cursor: pointer;" onclick="window.crmApp.switchSimTab('t3')"/>
+              <text x="200" y="174" fill="#115e59" font-family="sans-serif" font-size="12" font-weight="bold" text-anchor="middle" pointer-events="none">TẦNG 3: SALES (TÁC NGHIỆP & QUYẾT ĐỊNH)</text>
+              <text x="200" y="192" fill="#134e4a" font-family="sans-serif" font-size="9" text-anchor="middle" pointer-events="none">Ghi Log gọi thoại/gặp mặt &middot; Amber Decision (Nếu từ chối -> Nurture)</text>
+
+              <!-- Tier 4: Payment Green -->
+              <polygon points="164,215 236,215 210,275 190,275" fill="#a7f3d0" stroke="#047857" stroke-width="2" style="cursor: pointer;" onclick="window.crmApp.switchSimTab('t4')"/>
+              <text x="200" y="240" fill="#065f46" font-family="sans-serif" font-size="12" font-weight="bold" text-anchor="middle" pointer-events="none">TẦNG 4: PAYMENT (HỢP ĐỒNG & THANH TOÁN)</text>
+              <text x="200" y="258" fill="#022c22" font-family="sans-serif" font-size="9" text-anchor="middle" pointer-events="none">Khởi tạo Contract/Billing &middot; API Webhook Realtime</text>
+
+              <!-- Tier 5: Control Layer Red frame around everything or base -->
+              <rect x="15" y="295" width="370" height="60" rx="6" fill="#fecdd3" stroke="#b91c1c" stroke-width="2" stroke-dasharray="4,4"/>
+              <text x="200" y="318" fill="#991b1b" font-family="sans-serif" font-size="13" font-weight="black" text-anchor="middle">LỚP KIỂM SOÁT AN NINH DỮ LIỆU CONTROL LAYER (TẦNG 5)</text>
+              <text x="200" y="336" fill="#7f1d1d" font-family="sans-serif" font-size="9.5" text-anchor="middle">Chặn Mandatory Fields &middot; Ghi sườn Audit Log &middot; Phân quyền RBAC &middot; Radar cảnh báo biến động</text>
+            </svg>
+            <div style="font-size: 10px; color: var(--n500); margin-top: 6px; font-style: italic;">(Nhấp chuột trực tiếp vào từng tầng trong biểu đồ hình phễu trên để nhảy tới Sandbox điều khiển mô phỏng)</div>
+          </div>
+
+          <!-- Descriptive Explainer Notes for each layer -->
+          <div style="display: flex; flex-direction: column; gap: 8px; margin-top: 12px; font-size: 11.5px; line-height: 1.45;">
+            <div style="border-left: 3.5px solid #8b5cf6; padding-left: 8px;">
+              <strong style="color: #6d28d9;">T1 - Awareness:</strong> Marketer thu hút leads qua quảng cáo/sự kiện. Lead mới điền form capture là điểm đầu tiên đổ về CRM.
+            </div>
+            <div style="border-left: 3.5px solid #1d4ed8; padding-left: 8px;">
+              <strong style="color: #1e3a8a;">T2 - Lead Scoring:</strong> Máy chấm điểm hành vi để xác định Hot/Warm/Cold, tự động gán Sales rep phù hợp khu vực/sản phẩm, loại bỏ tranh giành khách.
+            </div>
+            <div style="border-left: 3.5px solid #0d9488; padding-left: 8px;">
+              <strong style="color: #115e59;">T3 - Sales operations:</strong> Hai luồng tác tác song song của sales (Call/Meet vs Báo giá/Demo). Khách hàng đưa ra quyết định Amber (Nếu từ chối -> Luồng Nuôi dưỡng lại).
+            </div>
+            <div style="border-left: 3.5px solid #059669; padding-left: 8px;">
+              <strong style="color: #065f46;">T4 - Payment:</strong> Pháp lý điện tử & Link thanh toán. Cổng ngân hàng bắn API Webhook realtime đồng bộ Deal sang Closed Won và thông báo tức thì Sales, PM, Kế Toán.
+            </div>
+          </div>
+        </div>
+
+        <!-- Right Side: Sandbox Simulators -->
+        <div style="display: flex; flex-direction: column; gap: 16px;">
+          
+          <!-- Tab selector for Simulator of each stage -->
+          <div class="panel" style="padding: 12px;">
+            <h4 style="font-family: var(--fd); font-size: 12.5px; font-weight: 800; margin-bottom: 10px; color: var(--n700); text-transform: uppercase;"><i class="fa-solid fa-laptop-code text-indigo-500"></i> Phòng Thí Nghiệm Mô Phỏng Hành Trình</h4>
+            
+            <!-- Dynamic Connecting Progress Stepper -->
+            <div style="background:var(--n50); border:1px solid var(--bd); border-radius: var(--rs); padding: 10px; margin-bottom: 12px; font-size: 11px;">
+              <div style="font-weight:800; color:var(--n700); margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+                <span>🎯 TIẾN TRÌNH LIÊN HOÀN (5-STEP WORKFLOW):</span>
+                <span class="text-indigo-600 font-bold" style="font-family:var(--fmo);">Bước ${activeSimTab === 't1' ? '1/4' : activeSimTab === 't2' ? '2/4' : activeSimTab === 't3' ? '3/4' : '4/4'}</span>
+              </div>
+              
+              <!-- Simple Progress line & dots -->
+              <div style="display:flex; justify-content:space-between; align-items:center; position:relative; margin: 12px 10px 18px 10px;">
+                <div style="position:absolute; top:50%; left:0; right:0; height:3px; background:#e2e8f0; z-index:1; transform:translateY(-50%);"></div>
+                <div style="position:absolute; top:50%; left:0; width:${activeSimTab === 't1' ? '0%' : activeSimTab === 't2' ? '33%' : activeSimTab === 't3' ? '66%' : '100%'}; height:3px; background:linear-gradient(90deg, #8b5cf6, #10b981); z-index:2; transform:translateY(-50%); transition: width 0.4s ease;"></div>
+                
+                <!-- Dot 1 -->
+                <div style="z-index:3; position:relative; text-align:center; cursor:pointer;" onclick="window.crmApp.switchSimTab('t1')">
+                  <div style="width:20px; height:20px; border-radius:50%; background:${activeSimTab === 't1' ? 'var(--p600)' : '#10b981'}; color:white; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:10px; margin:0 auto; border:2px solid white; box-shadow:0 0 0 2px ${activeSimTab === 't1' ? 'var(--p200)' : 'rgba(16,185,129,0.2)'};">1</div>
+                  <span style="font-size:9px; position:absolute; top:24px; left:50%; transform:translateX(-50%); white-space:nowrap; font-weight:${activeSimTab === 't1' ? 'bold' : 'normal'}; color:${activeSimTab === 't1' ? 'var(--p600)' : 'var(--n600)'};">T1: Marketing</span>
+                </div>
+                <!-- Dot 2 -->
+                <div style="z-index:3; position:relative; text-align:center; cursor:pointer;" onclick="window.crmApp.switchSimTab('t2')">
+                  <div style="width:20px; height:20px; border-radius:50%; background:${activeSimTab === 't2' ? 'var(--b600)' : (activeSimTab === 't3' || activeSimTab === 't4') ? '#10b981' : '#cbd5e1'}; color:white; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:10px; margin:0 auto; border:2px solid white; box-shadow:0 0 0 2px ${activeSimTab === 't2' ? 'var(--b200)' : 'transparent'};">2</div>
+                  <span style="font-size:9px; position:absolute; top:24px; left:50%; transform:translateX(-50%); white-space:nowrap; font-weight:${activeSimTab === 't2' ? 'bold' : 'normal'}; color:${activeSimTab === 't2' ? 'var(--b600)' : 'var(--n600)'};">T2: Routing</span>
+                </div>
+                <!-- Dot 3 -->
+                <div style="z-index:3; position:relative; text-align:center; cursor:pointer;" onclick="window.crmApp.switchSimTab('t3')">
+                  <div style="width:20px; height:20px; border-radius:50%; background:${activeSimTab === 't3' ? '#0f766e' : (activeSimTab === 't4') ? '#10b981' : '#cbd5e1'}; color:white; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:10px; margin:0 auto; border:2px solid white; box-shadow:0 0 0 2px ${activeSimTab === 't3' ? 'rgba(15,118,110,0.2)' : 'transparent'};">3</div>
+                  <span style="font-size:9px; position:absolute; top:24px; left:50%; transform:translateX(-50%); white-space:nowrap; font-weight:${activeSimTab === 't3' ? 'bold' : 'normal'}; color:${activeSimTab === 't3' ? '#0f766e' : 'var(--n600)'};">T3: Sales Deal</span>
+                </div>
+                <!-- Dot 4 -->
+                <div style="z-index:3; position:relative; text-align:center; cursor:pointer;" onclick="window.crmApp.switchSimTab('t4')">
+                  <div style="width:20px; height:20px; border-radius:50%; background:${activeSimTab === 't4' ? '#10b981' : '#cbd5e1'}; color:white; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:10px; margin:0 auto; border:2px solid white; box-shadow:0 0 0 2px ${activeSimTab === 't4' ? 'rgba(16,185,129,0.2)' : 'transparent'};">4</div>
+                  <span style="font-size:9px; position:absolute; top:24px; left:50%; transform:translateX(-50%); white-space:nowrap; font-weight:${activeSimTab === 't4' ? 'bold' : 'normal'}; color:${activeSimTab === 't4' ? '#10b981' : 'var(--n600)'};">T4: Payment</span>
+                </div>
+              </div>
+              
+              <!-- Quick automatic continuous simulation runner -->
+              <div style="margin-top: 24px; padding-top:10px; border-top:1px dashed var(--bd); display:flex; justify-content:space-between; align-items:center; gap: 8px;">
+                <span style="font-size:10px; color:var(--n500);"><i class="fa-solid fa-code-merge text-indigo-400"></i> Hỗ trợ chạy liên kết toàn bộ:</span>
+                <button class="btn pr xs" style="background: linear-gradient(135deg, #7c3aed, #2563eb); border:none; font-weight:bold; font-size:9.5px; padding:4px 8px;" onclick="window.crmApp.simRunEndToEndFlow()">
+                  <i class="fa-solid fa-play animate-pulse"></i> ⚡ Chạy Mô Phỏng Liên Hoàn Tự Động (T1 → T4)
+                </button>
+              </div>
+            </div>
+            
+            <div style="display: flex; gap: 4px; background: var(--n100); padding: 4px; border-radius: var(--rs);">
+              <button class="btn ${activeSimTab==='t1'?'pr':'bl'} xs" style="flex:1; font-weight:700; font-size:10.5px; padding:6px 2px;" onclick="window.crmApp.switchSimTab('t1')">T1: Marketing</button>
+              <button class="btn ${activeSimTab==='t2'?'pr':'bl'} xs" style="flex:1; font-weight:700; font-size:10.5px; padding:6px 2px;" onclick="window.crmApp.switchSimTab('t2')">T2: Routing</button>
+              <button class="btn ${activeSimTab==='t3'?'pr':'bl'} xs" style="flex:1; font-weight:700; font-size:10.5px; padding:6px 2px;" onclick="window.crmApp.switchSimTab('t3')">T3: Sales Deal</button>
+              <button class="btn ${activeSimTab==='t4'?'pr':'bl'} xs" style="flex:1; font-weight:700; font-size:10.5px; padding:6px 2px;" onclick="window.crmApp.switchSimTab('t4')">T4: Payment</button>
+            </div>
+
+            <!-- Tab Contents Dynamic -->
+            <div style="margin-top: 12px; min-height: 290px;">
+              ${activeSimTab === 't1' ? `
+                <!-- T1 Content: Marketing Capture Form -->
+                <div class="animate-fadeIn">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+                    <span style="font-size:11.5px; font-weight:900; color:#6d28d9;"><i class="fa-solid fa-rectangle-ad"></i> T1: FORM ĐĂNG KÝ TIẾP CẬN KHÁCH HÀNG</span>
+                    <span style="background:#f5f3ff; color:#7c3aed; font-size:9.5px; padding:2px 6px; border-radius:10px; font-weight:700;">Awareness Purple</span>
+                  </div>
+                  <p style="font-size:11px; color:var(--n500); margin-bottom:10px; line-height:1.4;">Marketer chạy chiến dịch kéo khách hàng. Điền Form sau để đổ dữ liệu vào hệ thống. Thiếu trường bắt buộc sẽ bị T5 chặn đứng!</p>
+                  
+                  <div style="display:flex; flex-direction:column; gap:8px;">
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                      <div class="fg" style="margin:0;">
+                        <label style="font-size:10.5px; font-weight:700;">Họ tên khách hàng *</label>
+                        <input type="text" id="sim-t1-name" placeholder="Nguyễn Khắc Triệu" style="padding:6px; font-size:11.5px;" />
+                      </div>
+                      <div class="fg" style="margin:0;">
+                        <label style="font-size:10.5px; font-weight:700;">Số điện thoại di động *</label>
+                        <input type="tel" id="sim-t1-phone" placeholder="0984992113" style="padding:6px; font-size:11.5px;" />
+                      </div>
+                    </div>
+                    <div style="display:grid; grid-template-columns: 1.2fr 1fr; gap:8px;">
+                      <div class="fg" style="margin:0;">
+                        <label style="font-size:10.5px; font-weight:700;">Địa chỉ Email *</label>
+                        <input type="email" id="sim-t1-email" placeholder="trieu.nguyen@mcna.vn" style="padding:6px; font-size:11.5px;" />
+                      </div>
+                      <div class="fg" style="margin:0;">
+                        <label style="font-size:10.5px; font-weight:700;">Nguồn tiếp cận *</label>
+                        <select id="sim-t1-source" style="padding:6px; font-size:11.5px; width:100%;">
+                          <option value="Facebook Ads">Facebook Ads (Quảng cáo)</option>
+                          <option value="Google Search Form">Google Search Landing Page</option>
+                          <option value="Warm Event">Hội Thảo Offline Khách Hàng</option>
+                          <option value="Cold Calling Campaign">Bốc Máy Gọi Điện Lạnh (Outbound)</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div style="display:grid; grid-template-columns: 1fr 1fr; gap:8px;">
+                      <div class="fg" style="margin:0;">
+                        <label style="font-size:10.5px; font-weight:700;">Nhu cầu tư vấn tuyển sinh *</label>
+                        <select id="sim-t1-need" style="padding:6px; font-size:11.5px; width:100%;">
+                          <option value="SaaS ERP Enterprise Suite">SaaS ERP Enterprise Suite - Gói tùy biến rộng</option>
+                          <option value="Aura CRM Core Pack">Aura CRM Core Pack - Toàn diện bán hàng</option>
+                          <option value="Aura CS Helpdesk Hub">Aura CS SLA System - Chăm sóc khách hàng</option>
+                          <option value="Standard Cloud App">Standard Cloud App - Phù hợp startup</option>
+                        </select>
+                      </div>
+                      <div class="fg" style="margin:0;">
+                        <label style="font-size:10.5px; font-weight:700;">Khu vực địa lý địa phương *</label>
+                        <select id="sim-t1-region" style="padding:6px; font-size:11.5px; width:100%;">
+                          <option value="Kinh doanh miền Bắc">Miền Bắc (Trực Hà Nội)</option>
+                          <option value="Kinh doanh miền Nam">Miền Nam (Trực TP HCM)</option>
+                        </select>
+                      </div>
+                    </div>
+                    <div class="fg" style="margin:0;">
+                      <label style="font-size:10.5px; font-weight:700;">Trị giá gói dự kiến đề xuất (VND) *</label>
+                      <input type="number" id="sim-t1-val" value="120000000" style="padding:6px; font-size:11.5px;" />
+                    </div>
+
+                    <button class="btn pr" style="background:#7c3aed; font-weight:700; font-size:12px; margin-top:4px; padding:8px 12px; border:none;" onclick="window.crmApp.simSubmitCaptureForm()">
+                      <i class="fa-solid fa-bullhorn"></i> Gửi Đơn Đăng Ký (Run Capture Webhook)
+                    </button>
+                    
+                    <div style="background: #f5f3ff; border: 1px dashed #c084fc; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 11px; color: #5b21b6; line-height: 1.4;">
+                      <strong>💡 LIÊN KẾT LUỒNG (T1 → T2):</strong> Khi nhấn nút Gửi đơn đăng ký, phễu thô nhận diện lead mới đồng bộ lặp tức. Hệ thống sẽ tự động nhảy tab sang <strong>T2: Routing Rules</strong> để tính điểm hành vi & phân bổ sales tư vấn.
+                    </div>
+                  </div>
+                </div>
+              ` : activeSimTab === 't2' ? `
+                <!-- T2 Content: Automatic Scoring & Routing Rules -->
+                <div class="animate-fadeIn" style="display:flex; flex-direction:column; gap:8px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                    <span style="font-size:11.5px; font-weight:900; color:#1e3a8a;"><i class="fa-solid fa-calculator"></i> T2: CHẤM ĐIỂM LEAD SCORING & GIAO SALES TỰ ĐỘNG</span>
+                    <span style="background:#eff6ff; color:#1d4ed8; font-size:9.5px; padding:2px 6px; border-radius:10px; font-weight:700;">Auto-Route Blue</span>
+                  </div>
+                  
+                  <!-- Display newly captured lead for simulation, or the last one in LEADS_DB -->
+                  ${(() => {
+                    const latest = LEADS_DB[0];
+                    if (!latest) {
+                      return `<p style="font-size:11px; color:var(--n500); text-align:center; padding:30px 0;">Hãy tạo/gửi Form Capture ở bước T1 trước để chạy mô phỏng!</p>`;
+                    }
+                    
+                    // Simulate points
+                    let points = 2; // base
+                    if (latest.email && latest.email.includes('@')) points += 3;
+                    if (latest.value >= 100000000) points += 3;
+                    if (latest.phone && latest.phone.length > 9) points += 2;
+                    if (latest.source === 'Facebook Ads' || latest.source.includes('Landing')) points += 1;
+                    
+                    const scoreClass = latest.priority === 'hot' ? 'chip rd' : latest.priority === 'warm' ? 'chip am' : 'chip gy';
+                    const assignedRep = USERS_DB.find(u => u.id === latest.ownerId) || { name: 'Chưa rõ' };
+
+                    return `
+                      <div style="background:white; border:1px solid #bfdbfe; border-radius:var(--rs); padding:10px; font-size:11.2px;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:6px;">
+                          <span>Hồ sơ Lead vừa đổ về: <strong>${esc(latest.name)}</strong></span>
+                          <span style="font-family:var(--fmo); color:var(--n500);">${latest.id}</span>
+                        </div>
+                        <div style="margin-bottom:6px;">SĐT: <span class="tmono">${latest.phone}</span> &middot; Email: <span class="tmono">${esc(latest.email)}</span></div>
+                        <div style="margin-bottom:6px; color:var(--n600);">Trị giá dự tính: <strong style="color:var(--b700);">${fmtVND(latest.value)}</strong></div>
+                        
+                        <!-- Scoring Breakdown -->
+                        <div style="background:#f0f9ff; border:1px solid #bae6fd; border-radius:4px; padding:6px; margin:8px 0; font-size:10.5px;">
+                          <div style="display:flex; justify-content:space-between; font-weight:700; color:#0369a1; margin-bottom:4px;">
+                            <span>Bảng tính điểm hành vi (Lead Score)</span>
+                            <span>${points} Điểm</span>
+                          </div>
+                          <div style="display:flex; flex-direction:column; gap:2px; color:#0c4a6e; font-size:10px;">
+                            <div>&middot; Email hợp lệ định vị liên thông: +3 điểm ${latest.email ? '✓' : '✗'}</div>
+                            <div>&middot; Giao trị dự thảo lớn (&ge; 100M VND) nâng hạn: +3 điểm ${latest.value >= 100000000 ? '✓' : '✗'}</div>
+                            <div>&middot; Số điện thoại liên hệ đầy đủ số: +2 điểm ${latest.phone ? '✓' : '✗'}</div>
+                          </div>
+                        </div>
+
+                        <div style="display:flex; flex-wrap:wrap; gap:8px; align-items:center; margin-top:8px;">
+                          <div>Xếp hạng tự động: <span class="${scoreClass}">${latest.priority?.toUpperCase()} LEAD</span></div>
+                          <div>Sales phụ trách: <span class="chip bl font-bold">${esc(assignedRep.name)}</span></div>
+                        </div>
+                      </div>
+                      
+                      <div style="display:flex; gap:8px; margin-top:6px;">
+                        <button class="btn pr" style="flex:1.4; font-size:11px; background:#10b981; border:none; font-weight:bold;" onclick="window.crmApp.simAutoScoringRoute()"><i class="fa-solid fa-check-double"></i> ⚡ Duyệt Phân Bổ & Khởi Tạo Deal (Tới T3)</button>
+                        <button class="btn bl" style="flex:0.8; font-size:11px;" onclick="window.crmApp.switchSimTab('t3')">Chuyển Tab T3 <i class="fa-solid fa-arrow-right"></i></button>
+                      </div>
+
+                      <div style="background: #eff6ff; border: 1px dashed #60a5fa; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 11px; color: #1e40af; line-height: 1.4;">
+                        <strong>💡 LIÊN KẾT LUỒNG (T2 → T3):</strong> Khi bấm <strong>⚡ Duyệt Phân Bổ & Khởi Tạo Deal</strong>, hệ thống tự động thăng cấp Lead thô thành Deal thương thảo chính thức, định rõ Đại diện phụ trách & chuyển tab hoạt cảnh tới <strong>T3: Sales Deal</strong>.
+                      </div>
+                    `;
+                  })()}
+                </div>
+              ` : activeSimTab === 't3' ? `
+                <!-- T3 Content: Sales Negotiation & Amber Decisions -->
+                <div class="animate-fadeIn" style="display:flex; flex-direction:column; gap:8px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                    <span style="font-size:11.5px; font-weight:900; color:#0f766e;"><i class="fa-solid fa-comments"></i> T3: SALES TÁC NGHIỆP & PHÁN QUYẾT HỔ PHÁCH (AMBER DECISIONS)</span>
+                    <span style="background:#ccfbf1; color:#0f766e; font-size:9.5px; padding:2px 6px; border-radius:10px; font-weight:700;">Negotiation Hổ phách</span>
+                  </div>
+                  <p style="font-size:11px; color:var(--n500); line-height:1.45; margin-bottom:4px;">Sales tư vấn gọi điện, gửi báo giá và demo. Ngay sau đó, khách hàng đưa ra quyết định Amber. Nếu "Từ chối", hệ thống tự động đưa vào <b>"Luồng Nurture"</b> để nuôi dưỡng lại.</p>
+
+                  ${(() => {
+                    // Find a deal that represents active negotiation, or create a quick simulator one
+                    let targetDeal = DEALS_DB.find(d => d.stage !== 'closed_won' && d.stage !== 'closed_lost' && d.stage !== 'nurtured');
+                    if (!targetDeal) {
+                      // Fallback: reset a deal for simulation
+                      targetDeal = DEALS_DB[0];
+                      if (targetDeal) {
+                        targetDeal.stage = 'negotiation';
+                      }
+                    }
+
+                    if (!targetDeal) {
+                      return `<p style="font-size:11px; color:var(--n500); text-align:center; padding:30px 0;">Không có deal nào sẵn sàng trong hệ thống!</p>`;
+                    }
+
+                    return `
+                      <div style="background:white; border:1px solid #99f6e4; border-radius:var(--rs); padding:10px; font-size:11px;">
+                        <div style="font-weight:700; color:var(--n800); margin-bottom:4px;"><i class="fa-solid fa-file-contract"></i> ${esc(targetDeal.name)}</div>
+                        <div style="color:var(--n500); margin-bottom:4px;">Khách hàng doanh nghiệp: <b>${esc(targetDeal.companyName)}</b></div>
+                        <div style="margin-bottom:6px;">Trị giá Deal: <b class="text-teal-700">${fmtVND(targetDeal.value)}</b> &middot; Tới hạn chốt: <span class="tmono">${targetDeal.expectedClose}</span></div>
+                        
+                        <!-- Perform Call/Meet logs -->
+                        <div style="display:flex; gap:6px; margin-bottom:10px; border-top:1px solid var(--n100); padding-top:6px;">
+                          <button class="btn bl xs" style="font-size:9.5px; padding:4px 8px;" onclick="window.crmApp.simSalesActionLog('${targetDeal.id}', 'call')"><i class="fa-solid fa-phone"></i> Log Cuộc Gọi</button>
+                          <button class="btn bl xs" style="font-size:9.5px; padding:4px 8px;" onclick="window.crmApp.simSalesActionLog('${targetDeal.id}', 'meeting')"><i class="fa-solid fa-handshake"></i> Log Gặp Mặt</button>
+                          <button class="btn bl xs" style="font-size:9.5px; padding:4px 8px;" onclick="window.crmApp.simSalesActionLog('${targetDeal.id}', 'quote')"><i class="fa-solid fa-file-pdf"></i> Gửi Báo Giá</button>
+                        </div>
+
+                        <!-- Huge prominent amber buttons of "Khách hàng phán quyết" -->
+                        <div style="background:#fffbeb; border:1px solid #fef3c7; border-radius:var(--rs); padding:8px;">
+                          <div style="font-size:10.5px; font-weight:800; color:#b45309; text-transform:uppercase; margin-bottom:6px; display:flex; justify-content:space-between;">
+                            <span>⚡ NÚT QUYẾT ĐỊNH HỔ PHÁCH (AMBER DECISIONS)</span>
+                            <span>Trạng thái: ${targetDeal.stage.toUpperCase()}</span>
+                          </div>
+                          
+                          <div style="display:flex; gap:4px;">
+                            <button class="btn xs" style="flex:1; background:#10b981; color:white; border:none; font-weight:900; font-size:10px; padding:6px 0;" onclick="window.crmApp.simAmberDecision('${targetDeal.id}', 'accept')">
+                              <i class="fa-solid fa-check"></i> ĐỒNG Ý CHỐT
+                            </button>
+                            <button class="btn xs" style="flex:1; background:#f59e0b; color:white; border:none; font-weight:900; font-size:10px; padding:6px 0;" onclick="window.crmApp.simAmberDecision('${targetDeal.id}', 'delay')">
+                              <i class="fa-solid fa-clock"></i> CÂN NHẮC THÊM
+                            </button>
+                            <button class="btn xs" style="flex:1; background:#ef4444; color:white; border:none; font-weight:900; font-size:10px; padding:6px 0;" onclick="window.crmApp.simAmberDecision('${targetDeal.id}', 'reject')">
+                              <i class="fa-solid fa-xmark"></i> TỪ CHỐI (NURTURE)
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style="background: #e6fffa; border: 1px dashed #2dd4bf; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 11px; color: #0f766e; line-height: 1.4;">
+                        <strong>💡 LIÊN KẾT LUỒNG (T3 → T4):</strong> Bạn bắt buộc phải nhấn log tương tác cuộc gọi tối thiểu một lần, sau đó bấm <strong>ĐỒNG Ý CHỐT</strong>. Lúc này, hệ thống sẽ tự động chuyển sang <strong>T4: Payment</strong> kèm hợp đồng & link thanh toán nợ trực tuyến.
+                      </div>
+                    `;
+                  })()}
+                </div>
+              ` : `
+                <!-- T4 Content: Payments and Webhook simulators -->
+                <div class="animate-fadeIn" style="display:flex; flex-direction:column; gap:8px;">
+                  <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+                    <span style="font-size:11.5px; font-weight:900; color:#047857;"><i class="fa-solid fa-vault"></i> T4: VẬN ĐƠN THANH TOÁN & WEBHOOK REALTIME</span>
+                    <span style="background:#e6f4ea; color:#047857; font-size:9.5px; padding:2px 6px; border-radius:10px; font-weight:700;">Gateway Green</span>
+                  </div>
+                  <p style="font-size:11px; color:var(--n500); line-height:1.4; margin-bottom:6px;">Hợp đồng được ký điện tử và link thanh toán được sinh ra. Mô phỏng Webhook realtime từ ngân hàng báo về CRM để cập nhật và thông báo.</p>
+
+                  ${(() => {
+                    // Find a deal at closed_won or created specifically for payment
+                    let payDeal = DEALS_DB.find(d => d.stage === 'closed_won' || d.tags?.includes('Awaiting-Payment'));
+                    if (!payDeal) {
+                      // Fallback, prepare a deal in Awaiting-Payment stage
+                      payDeal = DEALS_DB.find(d => d.stage === 'proposal' || d.stage === 'negotiation');
+                      if (payDeal) {
+                        payDeal.tags = "Awaiting-Payment";
+                      }
+                    }
+
+                    if (!payDeal) {
+                      return `<p style="font-size:11px; color:var(--n500); text-align:center; padding:30px 0;">Không có hợp đồng thanh toán khả dụng nào!</p>`;
+                    }
+
+                    const isPaid = payDeal.stage === 'closed_won';
+
+                    return `
+                      <div style="background:white; border:1px solid #a7f3d0; border-radius:var(--rs); padding:10px; font-size:11px;">
+                        <div style="display:flex; justify-content:space-between; margin-bottom:4px;">
+                          <strong>Số HĐ: HD-${payDeal.id.toUpperCase()}</strong>
+                          <span class="chip ${isPaid ? 'gn' : 'am'}" style="font-size:9px; padding:1px 5px;">${isPaid ? 'ĐÃ ĐỐI CHIẾU THÀNH CÔNG' : 'ĐANG CHỜ THANH TOÁN'}</span>
+                        </div>
+                        <p style="color:var(--n700); margin:0 0 4px 0;">Deal liên đới: <b>${esc(payDeal.name)}</b></p>
+                        <p style="color:var(--n500); margin:0 0 6px 0;">Công ty: ${esc(payDeal.companyName)}</p>
+                        <div style="font-size:11px; background:var(--n50); padding:6px; border-radius:4px; margin-bottom:8px;">
+                          Link thanh toán: <a href="#" style="text-decoration:underline; color:var(--p600); font-family:var(--fmo);" onclick="event.preventDefault(); toast('Đây là link thanh toán điện tử của khách hàng!', 'info')">https://pay.mcna-crm.vn/billing/${payDeal.id}</a>
+                        </div>
+
+                        ${isPaid ? `
+                          <div style="background:#e6f4ea; color:#065f46; border:1px solid #a7f3d0; padding:6px; border-radius:4px; font-size:10.5px; font-style:italic; display:flex; align-items:center; gap:6px;">
+                            <i class="fa-solid fa-circle-check text-emerald-600"></i>
+                            <span>Bắn Webhook khớp tiền thành công! Hệ thống đã thông báo tự động tới Sales Rep, PM và đội ngũ Kế Toán.</span>
+                          </div>
+                        ` : `
+                          <button class="btn pr" style="width:100%; font-weight:800; font-size:11.5px; background:#059669; border:none; padding:8px 0;" onclick="window.crmApp.simBankWebhookCallback('${payDeal.id}')">
+                            <i class="fa-solid fa-cloud-bolt"></i> CHẠY SIMULATED BANK WEBHOOK REALTIME (Realtime Link-API)
+                          </button>
+                        `}
+                      </div>
+
+                      <div style="background: #f0fdf4; border: 1px dashed #34d399; padding: 10px; border-radius: 6px; margin-top: 10px; font-size: 11px; color: #166534; line-height: 1.4;">
+                        <strong>💡 LIÊN KẾT LUỒNG (T4 → T5):</strong> Thực thi Webhook từ ngân hàng sẽ trả khớp tiền hoàn hảo, đánh dấu deal thành công "Closed Won", đóng nợ hóa đơn và đồng thời lưu vết vĩnh viễn trên sổ cái tuân thủ tại <strong>T5: Control Layer</strong>.
+                      </div>
+                    `;
+                  })()}
+                </div>
+              `}
+            </div>
+          </div>
+
+          <!-- Live Mobile/Desktop Simulated Banner Broadcast Receiver -->
+          <div id="sim-webhook-notif-toast-area" style="display:none; background:#ecfdf5; border:1.5px solid #10b981; border-radius:var(--rs); padding:10px; font-size:11.5px; color:#065f46; box-shadow:0 3px 10px rgba(16,185,129,0.15);" class="animate-fadeIn">
+            <!-- Dynamic webhook notification outputs appear here! -->
+          </div>
+
+          <!-- Tier 5: Control Layer Center -->
+          <div class="panel" style="padding: 12px; border-top: 4px solid #ef4444; background: #fffcfc;">
+            <h4 style="font-family: var(--fd); font-size: 12.5px; font-weight: 800; margin-bottom: 8px; color: #b91c1c; text-transform: uppercase;">
+              <i class="fa-solid fa-shield-halved text-rose-600 animate-pulse"></i> Tầng 5 Control Layer - Bảng Giám Sát Tuân Thủ
+            </h4>
+
+            <div style="display:grid; grid-template-columns: 1fr 1fr; gap:10px; font-size:10.5px; margin-bottom:10px;">
+              <div style="background:white; border:1px solid #fecdd3; padding:6px; border-radius:var(--rs);">
+                <div style="font-weight:700; color:#991b1b;"><i class="fa-solid fa-lock"></i> Bản Đồ Permissions (RBAC)</div>
+                <div style="color:var(--n600); margin-top:2px;">User: <b>${esc(SESSION.name)}</b> (${esc(SESSION.role.toUpperCase())})</div>
+                <div style="color:var(--n500); font-style:italic; margin-top:2px; font-size:9.5px;">
+                  ${SESSION.role === 'sales'
+                    ? '🛡️ Active: Chỉ hiển thị leads tự phân bổ của riêng bạn.'
+                    : '🌐 Active: Bạn giữ vai trò quản trị viên - xem toàn quyền leads.'}
+                </div>
+              </div>
+              <div style="background:white; border:1px solid #fecdd3; padding:6px; border-radius:var(--rs);">
+                <div style="font-weight:700; color:#991b1b;"><i class="fa-solid fa-brain"></i> Dynamic Anomaly Detection</div>
+                <div style="color:var(--n600); margin-top:2px;">Tỉ lệ Deal Win: <b>${conversionRate}%</b></div>
+                <div style="color:#b91c1c; font-weight:700; font-size:9.5px; margin-top:2px;">
+                  ${hasSpikeAnomaly ? '⚠️ Đỏ: Cảnh báo đột biến tỉ lệ chốt!' : '✓ Bình thường: Không phát hiện bất thường.'}
+                </div>
+              </div>
+            </div>
+
+            <!-- Threat alert notifications stream -->
+            ${activeAlerts.length > 0 ? `
+              <div style="display:flex; flex-direction:column; gap:6px; margin-bottom:10px;">
+                ${activeAlerts.map(al => `
+                  <div style="background:#fef2f2; border:1px solid #fee2e2; border-radius:4px; padding:6px 10px; font-size:10.5px; color:#991b1b;" class="animate-pulse">
+                    <strong style="color:#b91c1c; font-size:10px;"><i class="fa-solid fa-circle-exclamation"></i> ${esc(al.title)}</strong>
+                    <p style="margin:2px 0 0 0; line-height:1.3; color:#7f1d1d; font-size:9.5px;">${esc(al.detail)}</p>
+                  </div>
+                `).join('')}
+              </div>
+            ` : ''}
+
+            <!-- Realtime Audit log terminal display -->
+            <div style="background:#1e293b; border-radius:var(--rs); padding:8px; font-family:var(--fmo);">
+              <div style="color:#94a3b8; font-size:10px; font-weight:700; text-transform:uppercase; margin-bottom:6px; display:flex; justify-content:space-between; align-items:center;">
+                <span>📜 THỜI GIAN THỰC NHẬT KÝ KIỂM TRA (AUDIT TRAIL)</span>
+                <span style="color:#cbd5e1; font-size:9px;">Trạng thái: Active</span>
+              </div>
+              <div style="display:flex; flex-direction:column; gap:4px; max-height:110px; overflow-y:auto; font-size:9.5px; line-height:1.3;">
+                ${AUDIT_LOG_DB.slice(0, 4).map(log => `
+                  <div style="color:#e2e8f0; border-bottom:1px solid rgba(255,255,255,0.05); padding-bottom:3px;">
+                    <span style="color:#22c55e;">[OK]</span> <span style="color:#38bdf8;">${esc(log.timestamp.split(' ')[1])}</span> &middot; 
+                    <strong style="color:#a78bfa;">${esc(log.user)}</strong> đã: ${esc(log.action)} <strong>${esc(log.resource)}</strong> 
+                    <span style="color:#94a3b8; font-family:var(--fmo);">(${log.ip})</span>
+                  </div>
+                `).join('')}
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+// FULL-FEATURED NOTIFICATIONS HUB RENDERER IN CRAFT PRESENTATION AESTHETICS
+export function renderNotificationsPage(notifications, currentUserId) {
+  // Filter notifications belonging to this user
+  const myNotifications = notifications.filter(n => !n.userId || n.userId === currentUserId || n.userId === 'all');
+  const unreadCount = myNotifications.filter(n => n.unread).length;
+
+  return `
+    <div class="page-container animate-fadeIn">
+      ${renderUnifiedPipelineHeader('notifications')}
+      
+      <div class="filter-bar" style="display:flex; justify-content:space-between; align-items:center; margin-bottom:15px; background: white; padding: 12px 18px; border-radius: 8px; border-left: 4px solid var(--p500); box-shadow: 0 1px 3px rgba(0,0,0,0.03);">
+        <div>
+          <h2 style="font-family:var(--fd); font-size:17px; font-weight:800; color:var(--n800); display:flex; align-items:center; gap:8px; margin: 0;"><i class="fa-solid fa-bell text-indigo-500"></i> Hộp Thư Thông Báo Toàn Diện</h2>
+          <p style="font-size:11px; color:var(--n500); margin:4px 0 0 0;">Bạn có <strong class="text-indigo-600">${unreadCount}</strong> thông báo hành động khẩn cấp chưa xử lý.</p>
+        </div>
+        <div style="display:flex; gap:8px;">
+          <button class="btn bl" onclick="window.crmApp.markAllNotificationsAsRead()" style="padding: 6px 12px; font-size: 11.5px; font-weight:700;"><i class="fa-solid fa-envelope-open"></i> Đọc tất cả</button>
+          <button class="btn rd" onclick="window.crmApp.clearAllNotifications()" style="padding: 6px 12px; font-size: 11.5px; font-weight:700;"><i class="fa-solid fa-trash-can"></i> Xóa tất cả</button>
+        </div>
+      </div>
+
+      <div class="panel" style="padding: 0; background: transparent; border: none; box-shadow: none;">
+        ${myNotifications.length === 0 ? `
+          <div class="empty" style="background:white; border:1px solid var(--n150); border-radius:var(--rs); padding:40px; text-align:center;">
+            <div class="empty-ico" style="color:var(--n300); font-size:40px;"><i class="fa-solid fa-envelope-circle-check"></i></div>
+            <p class="empty-msg" style="font-weight:700; color:var(--n600); margin-top:10px;">Hộp thư sạch sẽ! Chưa có thông báo mới nào.</p>
+            <p style="font-size:11.5px; color:var(--n400);">Khi marketers phân phối leads hoặc có giao dịch mới, thông báo tức thời sẽ gửi tại đây.</p>
+          </div>
+        ` : `
+          <div style="display:flex; flex-direction:column; gap:10px;">
+            ${myNotifications.map(n => {
+              const bg = n.unread ? 'background: #f5f3ff; border-left: 5px solid var(--p500);' : 'background: white; border-left: 5px solid #d1d5db;';
+              const dot = n.unread ? '<span style="display:inline-block; width:8px; height:8px; border-radius:50%; background:var(--p500); margin-right:6px;"></span>' : '';
+              return `
+                <div class="panel list-item-notif" style="padding: 16px; border-radius: var(--rs); ${bg} display:flex; justify-content:space-between; align-items:center; transition: all 0.2s; box-shadow:0 1px 3px rgba(0,0,0,0.02);" id="notif-card-${n.id}">
+                  <div style="display:flex; gap:12px; align-items: flex-start;">
+                    <div style="background: ${n.unread ? '#ddd6fe' : '#f1f5f9'}; color: ${n.unread ? '#4f46e5' : '#475569'}; width: 36px; height: 36px; border-radius: 50%; display: flex; align-items: center; justify-content: center; font-size: 14px; flex-shrink:0;">
+                      <i class="fa-solid ${n.title.includes('BÁO GIÁ') ? 'fa-file-invoice-dollar' : n.title.includes('LEAD') ? 'fa-filter' : n.title.includes('ALERT') ? 'fa-triangle-exclamation' : 'fa-bell'}"></i>
+                    </div>
+                    <div>
+                      <div style="display:flex; align-items:center; flex-wrap:wrap; gap:6px;">
+                        ${dot}
+                        <strong style="font-size: 13px; color: var(--n800);">${esc(n.title)}</strong>
+                        <span class="chip gy" style="font-size:9.5px; padding:1px 5px; font-weight:700;">${esc(n.user || 'M.C.N.A Robot')}</span>
+                      </div>
+                      <p style="font-size: 12.5px; color: var(--n600); margin: 6px 0 0 0; line-height: 1.45; font-weight:500;">${esc(n.content)}</p>
+                      <span style="font-size: 10px; color: var(--n400); display: block; margin-top: 6px;"><i class="fa-regular fa-clock"></i> ${n.time}</span>
+                    </div>
+                  </div>
+                  <div style="display:flex; gap:6px; align-items:center;">
+                    ${n.unread ? `<button class="btn sm" style="background:#e0e7ff; color:#4338ca; border:1px solid #c7d2fe; font-size:11px; font-weight:700; padding:4px 10px;" onclick="window.crmApp.markNotifAsRead('${n.id}')"><i class="fa-solid fa-check"></i> Đọc</button>` : ''}
+                    <button class="btn rd sm icon-only" onclick="window.crmApp.deleteNotif('${n.id}')" title="Xóa thông báo này"><i class="fa-solid fa-trash-can"></i></button>
+                  </div>
+                </div>
+              `;
+            }).join('')}
+          </div>
+        `}
+      </div>
+    </div>
+  `;
+}
+
 

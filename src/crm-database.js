@@ -154,28 +154,27 @@ export function initDB() {
     };
   }));
 
-  // 2. Seed 30 Contacts
+  // 2. Seed 30 Contacts (Cá Nhân B2C - No linked company)
   for (let i = 1; i <= 30; i++) {
     const firstName = randChoice(VN_FIRST_NAMES);
     const lastName = randChoice(VN_LAST_NAMES);
-    const linkedCompany = randChoice(COMPANIES_DB);
-    const deptRole = randChoice(["Trưởng phòng Mua hàng", "Giám đốc Công nghệ (CTO)", "Chuyên viên mua sắm B2B", "CEO Sáng lập", "Trưởng phòng HCNS", "Giám đốc Tài chính (CFO)"]);
+    const personalDomain = randChoice(["gmail.com", "yahoo.com", "outlook.com.vn", "hotmail.com"]);
     CONTACTS_DB.push({
       id: `con-${i}`,
       firstName,
       lastName,
       fullName: `${lastName} ${firstName}`,
-      title: deptRole,
-      companyId: linkedCompany.id,
-      companyName: linkedCompany.name,
+      title: "Khách tiêu dùng cá nhân",
+      companyId: null,
+      companyName: "",
       phone: genPhone(),
-      email: `${firstName.toLowerCase()}.${lastName.toLowerCase().replace(/[^a-z]/g, "")}@${linkedCompany.name.toLowerCase().replace(/[^a-z]/g, "")}.com.vn`,
+      email: `${firstName.toLowerCase()}.${lastName.toLowerCase().replace(/[^a-z]/g, "")}@${personalDomain}`,
       source: randChoice(CAMPAIGHT_SOURCES),
-      ownerId: linkedCompany.ownerId,
-      tags: randChoice(["VIP", "Doanh nghiệp", "Kỹ thuật", "Hợp đồng mới", "Nợ xấu", "Khó tính"]),
-      dealsCount: linkedCompany.dealsCount,
+      ownerId: randChoice(["usr-sales", "usr-emp1", "usr-emp2", "usr-emp3"]),
+      tags: randChoice(["VIP", "Khách lẻ", "Thân thiết", "Hợp đồng mới", "Nợ xấu", "Khó tính"]),
+      dealsCount: randRange(1, 3),
       lastActivity: `${randRange(10, 23)}/05/2026`,
-      notes: `Phụ trách đàm phán chính, ra quyết định trực tiếp môn mua sắm.`
+      notes: `Khách hàng cá nhân mua sắm tự chủ, quan tâm trải nghiệm dịch vụ trực tiếp.`
     });
   }
 
@@ -186,10 +185,12 @@ export function initDB() {
     const fn = randChoice(LEAD_FIRST_NAMES);
     const ln = randChoice(LEAD_LAST_NAMES);
     const fullName = `${ln} ${fn}`;
+    const isB2C = i % 2 === 0;
     LEADS_DB.push({
       id: `led-${i}`,
+      leadType: isB2C ? 'b2c' : 'b2b',
       name: fullName,
-      company: randChoice(["Đại lý Thép Cường Lực", "Gia dụng Minh Phát", "Logistics Thành Công", "Dệt may Việt Nam", "Xây dựng Hòa Bình", "Hải sản Tươi Sống", "Nội thất Decor"]),
+      company: isB2C ? "Khách hàng cá nhân" : randChoice(["Đại lý Thép Cường Lực", "Gia dụng Minh Phát", "Logistics Thành Công", "Dệt may Việt Nam", "Xây dựng Hòa Bình", "Hải sản Tươi Sống", "Nội thất Decor"]),
       phone: genPhone(),
       email: `${fn.toLowerCase()}.${ln.toLowerCase()}@outlook.com.vn`,
       source: randChoice(CAMPAIGHT_SOURCES),
@@ -199,16 +200,15 @@ export function initDB() {
       createdAt: `${randRange(1, 20)}/05/2026`,
       deadline: `${randRange(24, 30)}/05/2026`,
       priority: randChoice(["hot", "warm", "cold"]),
-      notes: "Nhu cầu mua hàng lớn, quan tâm đến quy chuẩn hỗ trợ kĩ thuật.",
-      tags: "Khách-Mới, B2B-SMB"
+      notes: isB2C ? "Khách hàng cá nhân có nhu cầu tư vấn giải pháp trực tiếp gia đình." : "Nhu cầu mua hàng lớn, quan tâm đến quy chuẩn hỗ trợ kĩ thuật.",
+      tags: isB2C ? "Khách-Mới, B2C-Retail" : "Khách-Mới, B2B-SMB"
     });
   }
 
-  // 4. Seed 20 Deals
+  // 4. Seed 20 Deals (Hybrid B2B & B2C)
   const STAGES = ["prospecting", "qualified", "proposal", "negotiation", "closed_won", "closed_lost"];
   for (let i = 1; i <= 20; i++) {
-    const contact = randChoice(CONTACTS_DB);
-    const company = COMPANIES_DB.find(c => c.id === contact.companyId);
+    const isB2B = i % 2 !== 0;
     const stage = randChoice(STAGES);
     let value = randRange(80, 800) * 1000000;
     let prob = 20;
@@ -218,23 +218,45 @@ export function initDB() {
     else if (stage === "closed_won") { prob = 100; value = value * 1.2; }
     else if (stage === "closed_lost") prob = 0;
 
-    DEALS_DB.push({
-      id: `dea-${i}`,
-      name: `Hợp đồng cung cấp cho ${company.name}`,
-      contactId: contact.id,
-      contactName: contact.fullName,
-      companyId: company.id,
-      companyName: company.name,
-      value,
-      stage,
-      probability: prob,
-      ownerId: company.ownerId,
-      expectedClose: `28/05/2026`,
-      createdAt: `01/05/2026`,
-      lastActivity: `${randRange(15, 23)}/05/2026`,
-      notes: "Sản phẩm chủ lực B2B SaaS, thời hiệu thanh khoản nhanh.",
-      tags: "Hợp-Đồng, VIP"
-    });
+    if (isB2B) {
+      const company = randChoice(COMPANIES_DB);
+      DEALS_DB.push({
+        id: `dea-${i}`,
+        name: `Hợp đồng cung cấp cho ${company.name}`,
+        contactId: `con-b2b-${i}`,
+        contactName: `Người đại diện ${company.name}`,
+        companyId: company.id,
+        companyName: company.name,
+        value,
+        stage,
+        probability: prob,
+        ownerId: company.ownerId,
+        expectedClose: `28/05/2026`,
+        createdAt: `01/05/2026`,
+        lastActivity: `${randRange(15, 23)}/05/2026`,
+        notes: "Sản phẩm chủ lực B2B SaaS, thời hiệu thanh khoản nhanh.",
+        tags: "Hợp-Đồng, B2B, VIP"
+      });
+    } else {
+      const contact = randChoice(CONTACTS_DB);
+      DEALS_DB.push({
+        id: `dea-${i}`,
+        name: `Đơn bán lẻ - ${contact.fullName}`,
+        contactId: contact.id,
+        contactName: contact.fullName,
+        companyId: null,
+        companyName: "Khách lẻ cá nhân",
+        value: value / 10, // Retail deals are smaller
+        stage,
+        probability: prob,
+        ownerId: contact.ownerId || "usr-sales",
+        expectedClose: `28/05/2026`,
+        createdAt: `01/05/2026`,
+        lastActivity: `${randRange(15, 23)}/05/2026`,
+        notes: "Bán lẻ giải pháp cá nhân tiêu dùng trực tiếp.",
+        tags: "Hóa-Đơn-Cá-Nhân, B2C"
+      });
+    }
   }
 
   // 5. Seed 30 Tasks
@@ -318,7 +340,7 @@ export function initDB() {
     });
   }
 
-  // 8. Seed 12 Quotations + Invoices
+  // 8. Seed 12 Quotations
   for (let i = 1; i <= 12; i++) {
     const deal = randChoice(DEALS_DB);
     const item1 = randChoice(PRODUCTS_DB);
@@ -347,22 +369,32 @@ export function initDB() {
       terms: "Phương thức thanh toán: Chuyển khoản Techcombank 100% khi bàn giao giấy phép.",
       notes: "Báo giá đặc biệt chiết khấu 5% cho đối tác VIP."
     });
+  }
+
+  // Seed 8 Distinct Invoices (Accounts Receivable)
+  for (let i = 1; i <= 8; i++) {
+    const deal = randChoice(DEALS_DB);
+    const item = randChoice(PRODUCTS_DB);
+    const qty = randRange(1, 4);
+    const subtotal = item.price * qty;
+    const vat = Math.round(subtotal * 0.1);
+    const total = subtotal + vat;
+    const linkedQuoteId = randChoice(["qte-1", "qte-3", "qte-5", "Nội bộ/Trực tiếp"]);
 
     INVOICES_DB.push({
       id: `inv-${i}`,
       number: `HD-2026-${i.toString().padStart(4, "0")}`,
-      quoteId: `qte-${i}`,
+      quoteId: linkedQuoteId,
       contactId: deal.contactId,
-      contactName: deal.contactName,
+      contactName: `Doanh nghiệp ${deal.contactName} (Phòng Kế Toán)`,
       items: [
-        { id: item1.id, name: item1.name, price: item1.price, qty: 1 },
-        { id: item2.id, name: item2.name, price: item2.price, qty: 2 }
+        { id: item.id, name: item.name, price: item.price, qty: qty }
       ],
       total,
       status: randChoice(["paid", "partial", "overdue"]),
-      dueDate: `30/05/2026`,
-      paidAt: `20/05/2026`,
-      notes: "Xuất hóa đơn đỏ điện tử VAT."
+      dueDate: `28/06/2026`,
+      paidAt: i % 2 === 0 ? `20/05/2026` : undefined,
+      notes: "Hóa đơn giá trị gia tăng đối chiếu công nợ phát sinh trực tiếp."
     });
   }
 
