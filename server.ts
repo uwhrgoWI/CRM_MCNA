@@ -11,7 +11,7 @@ const PORT = 3000;
 
 app.use(express.json());
 
-// Resilient Lazy initialization of Gemini client to avoid crash if API key is not yet set
+// Create resilient client Gemini API
 let aiInstance: GoogleGenAI | null = null;
 function getGeminiClient(): GoogleGenAI {
   if (!aiInstance) {
@@ -32,24 +32,23 @@ function getGeminiClient(): GoogleGenAI {
 }
 
 // -------------------------------------------------------------
-// AI API ENDPOINTS
+// CRM AI API ENDPOINTS
 // -------------------------------------------------------------
 
-// 1. Web Mentor AI (Student-centric tutoring companion)
-app.post("/api/gemini/mentor", async (req, res) => {
+// 1. CRM Sales Assistant AI (Email writing, script suggestions, objection handling)
+app.post("/api/gemini/sales-assistant", async (req, res) => {
   try {
     const { message, history, context } = req.body;
     const ai = getGeminiClient();
 
     const systemInstruction = 
-      "You are 'LMS Pro AI Study Mentor', an elite academic virtual supervisor. " +
-      "You guide students on software engineering, IT, and other subjects. " +
-      "Respond in a very direct, academic, encouraging, and clear tone using well-structured markdown. " +
-      "If applicable, structure your feedback using bullet points and brief code examples if coding related." +
-      ` Student context if any: ${JSON.stringify(context || {})}.` +
-      " Keep answers concise but intellectually deep. Always answer in Vietnamese unless requested otherwise.";
+      "You are 'MCNA CRM Sales Assistant', an elite B2B and B2C sales consultant. " +
+      "You guide sales representatives on client communication, objection handling, follow-up strategies, and pitch structuring. " +
+      "Respond in a professional, persuasive, commercial, and clear tone using well-structured markdown. " +
+      "If applicable, structure your feedback using bullet points and brief text templates for communication." +
+      ` Client context if any: ${JSON.stringify(context || {})}.` +
+      " Keep answers concise but commercially deep. Always answer in Vietnamese unless requested otherwise.";
 
-    // Convert history format if present, otherwise send a combined payload
     const contents = [];
     if (history && Array.isArray(history)) {
       for (const turn of history) {
@@ -75,29 +74,29 @@ app.post("/api/gemini/mentor", async (req, res) => {
 
     res.json({ text: response.text });
   } catch (error: any) {
-    console.error("Mentor AI error:", error);
+    console.error("Sales Assistant AI error:", error);
     res.status(500).json({ 
       error: error.message || "Something went wrong",
-      fallback: "Chào bạn! Tôi là LMS Pro AI Study Mentor. Hệ thống hiện chưa được ghim kết nối API Gemini thực tế, hoặc mã key trợ lý đang khởi tạo. Tuy nhiên, tôi khuyên bạn nên tập trung vào việc bố trí lịch học tối ưu, chia nhỏ mục tiêu đồ án phần mềm (Software Project) và ôn luyện cấu trúc dữ liệu cơ bản để gia tăng GPA hiệu quả!"
+      fallback: "Chào bạn! Tôi là MCNA CRM Sales Assistant. Hệ thống hiện chưa kết nối API Gemini thực tế. Tuy nhiên, tôi khuyên bạn nên tập trung vào việc phản hồi khách hàng trong dưới 5 phút, xây dựng kịch bản xử lý từ chối dựa trên giá trị cốt lõi (ROI) và lên lịch theo sát (follow-up) định kỳ để tăng tỷ lệ chốt hợp đồng!"
     });
   }
 });
 
-// 2. Curriculum AI Draft Engine (Teacher-centric assistance tool)
-app.post("/api/gemini/course-generator", async (req, res) => {
-  const { courseName, description, studentLevel, numModules } = req.body || {};
+// 2. Lead Scorer & Strategy Engine (Lead Scoring & Strategy Recommendations)
+app.post("/api/gemini/lead-scorer", async (req, res) => {
+  const { leadName, industry, budget, interactionCount } = req.body || {};
   try {
     const ai = getGeminiClient();
 
-    const prompt = `Hãy thiết kế một đề cương chi tiết môn học chất lượng cao có tên: "${courseName || 'Khóa học bổ khuyết'}".
-Mô tả môn học: "${description || 'Môn học cơ bản thuộc khung chương trình đào tạo chính quy'}".
-Đối tượng người học: học sinh/sinh viên trình độ "${studentLevel || 'Mọi trình độ'}".
-Yêu cầu thiết lập gồm đúng ${numModules || 4} khối chương trình mục tiêu (modules) hoàn chỉnh.
-Với mỗi khối chương trình (module), cung cấp:
-- Tên module hấp dẫn, trực quan.
-- Tóm tắt 2-3 kiến thức cốt lõi.
-- 01 Bài tập thực hành mẫu (Assignment) liên quan kèm hướng dẫn chấm điểm nhanh.
-- Gợi ý câu hỏi kiểm tra nhanh (quiz) trắc nghiệm 3 câu hỏi kèm đáp án giải thích sơ bộ.
+    const prompt = `Hãy phân tích và thực hiện chấm điểm tiềm năng (Lead Scoring) chi tiết cho khách hàng: "${leadName || 'Khách hàng tiềm năng vãng lai'}".
+Lĩnh vực hoạt động: "${industry || 'Chưa xác định'}".
+Ngân sách dự kiến: "${budget || 'Chưa cấu hình ngân sách'}".
+Số lần tương tác tích lũy trên CRM: ${interactionCount || 1} lần.
+
+Yêu cầu thiết lập đánh giá gồm:
+- Chấm điểm số tiềm năng trực quan trên thang điểm 100 kèm xếp loại phễu (Hot / Warm / Cold Lead).
+- Phân tích ngắn gọn 2-3 cơ hội hoặc rào cản cốt lõi (Pain points / Objections) dựa trên hồ sơ.
+- Đề xuất 01 Kịch bản hành động kế tiếp tối ưu nhất (Next-Best-Action) kèm mẫu câu mở lời nhanh cho Sales Rep.
 
 Hãy xuất kết quả bằng Markdown sinh động đẹp mắt, phân cấp rõ ràng bằng các tiêu đề h3, h4, ranh giới kẻ ngang. Trả lời bằng tiếng Việt.`;
 
@@ -105,67 +104,65 @@ Hãy xuất kết quả bằng Markdown sinh động đẹp mắt, phân cấp r
       model: "gemini-3.5-flash",
       contents: prompt,
       config: {
-        systemInstruction: "You are an expert curriculum designer and senior university professor. You create rigorous, modern courses with clear milestones and precise instructions.",
-        temperature: 0.8,
+        systemInstruction: "You are an expert sales operations analyst and senior CRM architect. You evaluate lead conversion probabilities with extreme accuracy and commercial insight.",
+        temperature: 0.5,
       }
     });
 
     res.json({ content: response.text });
   } catch (error: any) {
-    console.error("Course Generator error:", error);
+    console.error("Lead Scorer error:", error);
     res.status(500).json({ 
       error: error.message || "Something went wrong",
-      fallback: `### Đọc Đề Cương Khóa Học Mẫu: ${courseName || 'AWS Cloud'} (Bản dự phòng)\n\n*Hệ thống đang chạy chế độ Offline. Dưới đây là khung quy chuẩn đề cương gợi ý:*\n\n#### Khối 1: Cơ bản và Thiết lập nền tảng\n- **Nội dung:** Tổng quan lý thuyết cốt lõi, cài đặt môi trường làm việc.\n- **Thực hành:** Cấu hình thành công bộ khung đồ án chính của môn học.\n\n#### Khối 2: Thực kỹ và Phát triển chuyên sâu\n- **Nội dung:** Đi sâu giải quyết các bài toán tuần tự, xử lý bất đồng bộ hoặc nghiệp vụ phức tạp.\n- **Thực hành:** Viết mã tối ưu hóa hiệu năng, xây dựng tài liệu API đặc tả.`
+      fallback: `### Đánh Giá Cơ Hội Khách Hàng Mẫu: ${leadName || 'Doanh nghiệp SME'} (Bản dự phòng)\n\n*Hệ thống đang chạy chế độ Offline. Khung quy chuẩn đánh giá chiến lược:*\n\n#### Khối 1: Phân hạng & Chấm điểm\n- **Trạng thái:** Warm Lead (65/100 điểm).\n- **Cơ hội:** Khách hàng có nhu cầu số hóa quy trình tương tác nội bộ.\n\n#### Khối 2: Hành động kế tiếp khuyến nghị\n- **Chiến thuật:** Thiết lập cuộc gọi Demo giải pháp 1-1 trực tiếp, tập trung giải quyết bài toán tối ưu chi phí vận hành.`
     });
   }
 });
 
-// 3. Manager Performance & Financial Advisor AI
-app.post("/api/gemini/manager-insights", async (req, res) => {
+// 3. Manager Performance & Pipeline Advisor AI (Pipeline Insights & Sales Strategy Recommendations)
+app.post("/api/gemini/pipeline-insights", async (req, res) => {
   try {
-    const { stats, currentStaff, totalStudents } = req.body;
+    const { stats, currentReps, totalLeads } = req.body;
     const ai = getGeminiClient();
 
-    const prompt = `Với tư cách cố vấn chiến lược trung tâm đào tạo, phân tích nhanh bộ dữ liệu hiện trạng sau để đề xuất 3 giải pháp cải tiến hiệu suất vận hành và doanh thu tài khóa:
-- Tổng số học viên/mọi người: ${totalStudents || 500} người.
-- Quy mô nhân lực giáo vụ & quản lý: ${currentStaff || '20'} cán bộ.
-- Doanh thu học phí ước tính (Tháng): ${stats.revenue || '92.4 Tr VNĐ'}.
-- Tỉ lệ hoạt động máy chủ LMS: ${stats.uptime || '99.98%'}.
-- Phân khúc môn học chính: Công nghệ phần mềm (SWE), Khoa học dữ liệu (Data Science), Thiết kế đồ họa, Marketing số.
+    const prompt = `Với tư cách cố vấn chiến lược và Giám đốc Kinh doanh (CCO), phân tích nhanh bộ dữ liệu hiện trạng phễu bán hàng sau để đề xuất 3 giải pháp đột phá giúp tăng tỷ lệ chuyển đổi và doanh thu tài khóa:
+- Tổng số Leads hiện có trong hệ thống: ${totalLeads || 500} khách hàng tiềm năng.
+- Quy mô lực lượng Sales Rep vận hành: ${currentReps || '12'} nhân sự.
+- Tổng giá trị giao dịch kỳ vọng trong phễu (Pipeline Value): ${stats.pipelineValue || '1.5 Tỷ VNĐ'}.
+- Tỷ lệ chốt deal trung bình (Win Rate): ${stats.winRate || '8.5%'}.
+- Phân khúc sản phẩm chính: Giải pháp phần mềm B2B, Gói dịch vụ số hóa doanh nghiệp, Tư vấn giải pháp tích hợp hệ thống.
 
-Hãy đưa ra bình luận và 3 sáng kiến độc quyền ngắn gọn, tập trung sâu sắc vào tối ưu hóa chi phí giáo viên, đẩy mạnh tuyển sinh số và áp dụng gamification để giữ chân học sinh giảm tỷ lệ rớt môn. Xuất ra markdown rành mạch, ngôn từ thực tế, quyết đoán, bằng tiếng Việt.`;
+Hãy đưa ra bình luận sắc bén và 3 sáng kiến độc quyền ngắn gọn, tập trung sâu sắc vào tăng tốc thời gian phản hồi lead, tối ưu hóa quy trình phân phối cơ hội (Lead routing) tự động và kịch bản bám sát khách hàng cũ để up-sell. Xuất ra markdown rành mạch, ngôn từ thực tế, quyết đoán, bằng tiếng Việt.`;
 
     const response = await ai.models.generateContent({
       model: "gemini-3.5-flash",
       contents: prompt,
       config: {
-        systemInstruction: "You are an expert startup advisor and experienced education business development director.",
+        systemInstruction: "You are an expert Chief Commercial Officer (CCO) and high-growth B2B SaaS business development consultant.",
         temperature: 0.6,
       }
     });
 
     res.json({ insights: response.text });
   } catch (error: any) {
-    console.error("Manager Insights AI error:", error);
+    console.error("Pipeline Insights AI error:", error);
     res.status(500).json({ 
       error: error.message || "Something went wrong",
-      fallback: "### Cố vấn Quản trị - Khuyến nghị Chiến lược (Dự phòng):\n\n1. **Chuẩn hóa khung năng lực giáo viên:** Triển khai cơ chế trợ giảng số giúp giảm 25% thời gian chấm bài thủ công.\n2. **Tận dụng tối đa học thuật kéo:** Ra mắt gói học thử chuyên ngành Software Engineering ngắn hạn nhắm tới đối tượng chuyển ngành.\n3. **Cải tiến tỷ lệ giữ chân:** Thiết lập hệ thống thông báo tự động SMS cho phụ huynh và cảnh báo sớm GPA < 2.5."
+      fallback: "### Cố vấn Quản trị Sales - Khuyến nghị Chiến lược Pipeline (Dự phòng):\n\n1. **Chuẩn hóa Lead Routing:** Cài đặt cơ chế phân phối thông minh, đảm bảo lead mới được chuyển giao cho Sales Rep phù hợp trong vòng dưới 3 phút.\n2. **Tối ưu hóa phễu chuyển đổi:** Tổ chức chuỗi Workshop chia sẻ giá trị thực tế để làm nóng lại nhóm 'Lead đóng băng' quá 45 ngày.\n3. **Số hóa báo cáo tự động:** Giảm thiểu 30% thời gian cập nhật dữ liệu thủ công của nhân sự bằng cách tích hợp trực tiếp cổng log cuộc gọi."
     });
   }
 });
 
 // 4. API Health Check
 app.get("/api/health", (req, res) => {
-  res.json({ status: "ok", message: "LMS Pro backend is live!" });
+  res.json({ status: "ok", message: "MCNA CRM VN backend is live!" });
 });
-
 
 // -------------------------------------------------------------
 // VITE OR STATIC SERVING INTEGRATION
 // -------------------------------------------------------------
 async function bootstrap() {
   if (process.env.NODE_ENV !== "production") {
-    // Development mode
     const vite = await createViteServer({
       server: { middlewareMode: true },
       appType: "spa",
@@ -173,7 +170,6 @@ async function bootstrap() {
     app.use(vite.middlewares);
     console.log("Vite dev middleware mounted successfully.");
   } else {
-    // Production client serving
     const distPath = path.join(process.cwd(), 'dist');
     app.use(express.static(distPath));
     app.get('*all', (req, res) => {
@@ -183,7 +179,7 @@ async function bootstrap() {
   }
 
   app.listen(PORT, "0.0.0.0", () => {
-    console.log(`[LMS SERVER] Live and listening on URL: http://0.0.0.0:${PORT}`);
+    console.log(`[CRM SERVER] Live and listening on URL: http://0.0.0.0:${PORT}`);
   });
 }
 
