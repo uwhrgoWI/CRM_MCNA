@@ -6,6 +6,8 @@ import {
   ACTIVITIES_DB, QUOTES_DB, PRODUCTS_DB, TICKETS_DB, INVOICES_DB, REVENUE_DATA, NOTIFICATIONS_DB, AUDIT_LOG_DB, initDB 
 } from './crm-database.js';
 
+import { bootLoadFromCloud, isCloudEnabled, syncNow } from './crm-supabase.js';
+
 import { svgBarChart, svgLineChart, svgDonut, svgFunnel, svgSparkline } from './crm-charts.js';
 
 import { 
@@ -4598,9 +4600,19 @@ export function setupMcnaFunnelEvents() {
   }
 }
 
-function init() {
-  initDB();
-  
+async function init() {
+  // Load durable data from Supabase first; fall back to in-memory seeds
+  // so the app still works when the cloud is unreachable.
+  let cloudOk = false;
+  try {
+    cloudOk = await bootLoadFromCloud();
+  } catch (err) {
+    console.error('Supabase boot failure:', err);
+  }
+  if (!cloudOk) {
+    initDB();
+  }
+
   // Register dynamic window properties
   Object.defineProperty(window, 'SESSION', {
     get: function() { return SESSION; },
@@ -4611,10 +4623,18 @@ function init() {
   // Starting page: login screen directly
   CUR_PAGE = 'login';
   renderEntryScreen();
-  
+
   setupFloatingRoleSwitcher();
   setupEventDelegation();
   setupMcnaFunnelEvents();
+
+  setTimeout(() => {
+    if (cloudOk) {
+      toast(`☁️ Đã kết nối Supabase: ${CONTACTS_DB.length} khách hàng, ${USERS_DB.length} nhân sự. Mọi thay đổi được lưu tự động.`, 'success');
+    } else {
+      toast('⚠️ Chế độ offline demo: dữ liệu sẽ mất khi tải lại trang.', 'warning');
+    }
+  }, 800);
 }
 
 // Run Application Init

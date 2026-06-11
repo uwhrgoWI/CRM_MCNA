@@ -6,3 +6,6 @@ coverage/
 *.log
 .env*
 !.env.example
+.vercel
+
+scripts/db-password.local.txt
