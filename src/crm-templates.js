@@ -1,9 +1,9 @@
 // Enterprise CRM Pro - Dynamic Web UI Page Templates
 'use strict';
 
-import { 
-  USERS_DB, COMPANIES_DB, CONTACTS_DB, LEADS_DB, DEALS_DB, TASKS_DB, 
-  ACTIVITIES_DB, QUOTES_DB, PRODUCTS_DB, TICKETS_DB, INVOICES_DB, REVENUE_DATA, AUDIT_LOG_DB 
+import {
+  USERS_DB, COMPANIES_DB, CONTACTS_DB, LEADS_DB, DEALS_DB, TASKS_DB,
+  ACTIVITIES_DB, QUOTES_DB, PRODUCTS_DB, TICKETS_DB, INVOICES_DB, REVENUE_DATA, AUDIT_LOG_DB, CALL_LOGS_DB
 } from './crm-database.js';
 
 import { svgBarChart, svgLineChart, svgDonut, svgFunnel, svgSparkline } from './crm-charts.js';
@@ -362,6 +362,12 @@ export function buildSidebar(session, activePage, isCollapsed) {
         <span class="ni-txt">SLA Tickets Hỗ Trợ</span>
         <span class="ni-bd r" style="background:#14b8a6; font-size:9.5px; font-weight:bold;">${TICKETS_DB.filter(t => t.status === 'open').length}</span>
       </div>
+      ${role !== 'support' ? `
+      <div class="ni ${activePage === 'kpi-calls' ? 'active' : ''}" data-page="kpi-calls">
+        <span class="ni-ic" style="color:#f43f5e;"><i class="fa-solid fa-phone-volume"></i></span>
+        <span class="ni-txt">KPI Cuộc Gọi</span>
+        <span class="ni-bd r" style="background:#f43f5e; font-size:9.5px; font-weight:bold;">${(() => { const d = new Date(); const tk = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`; const today = CALL_LOGS_DB.filter(c => c.dateKey === tk); return role === 'sales' ? today.filter(c => c.repId === session.id).length : today.length; })()}</span>
+      </div>` : ''}
     </div>
   `;
 

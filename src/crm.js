@@ -1,9 +1,10 @@
 // Enterprise CRM Pro - Core Application Orchestrator
 'use strict';
 
-import { 
-  USERS_DB, COMPANIES_DB, CONTACTS_DB, LEADS_DB, DEALS_DB, TASKS_DB, 
-  ACTIVITIES_DB, QUOTES_DB, PRODUCTS_DB, TICKETS_DB, INVOICES_DB, REVENUE_DATA, NOTIFICATIONS_DB, AUDIT_LOG_DB, initDB 
+import {
+  USERS_DB, COMPANIES_DB, CONTACTS_DB, LEADS_DB, DEALS_DB, TASKS_DB,
+  ACTIVITIES_DB, QUOTES_DB, PRODUCTS_DB, TICKETS_DB, INVOICES_DB, REVENUE_DATA, NOTIFICATIONS_DB, AUDIT_LOG_DB,
+  CALL_LOGS_DB, EMAIL_OUTBOX_DB, initDB
 } from './crm-database.js';
 
 import { bootLoadFromCloud, isCloudEnabled, syncNow } from './crm-supabase.js';
@@ -111,9 +112,9 @@ let EMAIL_TEMPLATES = [
 ];
 
 const PERMISSIONS = {
-  superadmin: ['dashboard-superadmin', 'reports', 'leads', 'deals', 'pipeline', 'contacts', 'companies', 'products', 'quotes', 'invoices', 'tasks', 'activities', 'tickets', 'users', 'settings', 'profile', 'notifications', 'sales-toolkit', 'mcna-funnel'],
-  manager: ['dashboard-manager', 'reports', 'leads', 'deals', 'pipeline', 'contacts', 'companies', 'quotes', 'invoices', 'tasks', 'activities', 'tickets', 'profile', 'notifications', 'sales-toolkit', 'mcna-funnel'],
-  sales: ['dashboard-salesrep', 'leads', 'deals', 'pipeline', 'contacts', 'tasks', 'activities', 'quotes', 'products', 'invoices', 'tickets', 'profile', 'notifications', 'sales-toolkit', 'mcna-funnel'],
+  superadmin: ['dashboard-superadmin', 'reports', 'leads', 'deals', 'pipeline', 'contacts', 'companies', 'products', 'quotes', 'invoices', 'tasks', 'activities', 'tickets', 'users', 'settings', 'profile', 'notifications', 'sales-toolkit', 'mcna-funnel', 'kpi-calls'],
+  manager: ['dashboard-manager', 'reports', 'leads', 'deals', 'pipeline', 'contacts', 'companies', 'quotes', 'invoices', 'tasks', 'activities', 'tickets', 'profile', 'notifications', 'sales-toolkit', 'mcna-funnel', 'kpi-calls'],
+  sales: ['dashboard-salesrep', 'leads', 'deals', 'pipeline', 'contacts', 'tasks', 'activities', 'quotes', 'products', 'invoices', 'tickets', 'profile', 'notifications', 'sales-toolkit', 'mcna-funnel', 'kpi-calls'],
   support: ['dashboard-support', 'leads', 'deals', 'pipeline', 'contacts', 'quotes', 'invoices', 'tasks', 'activities', 'tickets', 'profile', 'notifications', 'mcna-funnel']
 };
 
@@ -139,7 +140,8 @@ const PAGE_TITLES = {
   'profile': 'Hồ Sơ Tài Khoản Cá Nhân',
   'notifications': 'Hộp Thư Thông Báo Mới',
   'sales-toolkit': 'Hộp Công Cụ Bổ Trợ Sales & Marketing (Sales Playbook Hub)',
-  'mcna-funnel': 'Hệ Thống Phễu Kinh Doanh 5 Tầng MCNA'
+  'mcna-funnel': 'Hệ Thống Phễu Kinh Doanh 5 Tầng MCNA',
+  'kpi-calls': 'KPI Cuộc Gọi & Kiểm Soát Tác Nghiệp Sales'
 };
 
 /* ==========================================================================
@@ -301,7 +303,10 @@ function renderPageContent(pageId) {
   else if (pageId === 'tasks') {
     mount.innerHTML = renderTasksPage(TASKS_DB, ACTIVE_TAB_STATE);
     setupTasksEventHandlers();
-  } 
+  }
+  else if (pageId === 'kpi-calls') {
+    mount.innerHTML = renderKpiCallsPage();
+  }
   else if (pageId === 'quotes') {
     mount.innerHTML = renderQuotationsPage(QUOTES_DB);
     setupQuotationsEventHandlers();
@@ -857,7 +862,12 @@ function openNewLeadModalForm() {
     };
 
     LEADS_DB.unshift(newLeadObj);
-    
+
+    // Pipeline T1->T2 (BA doc): a new lead must also be recorded in the
+    // B2B/B2C customer database, and the assigned rep gets a real email.
+    ensureCustomerFromLead(newLeadObj);
+    dispatchAssignmentEmail(newLeadObj);
+
     // TRIGGER IMMEDIATE NOTIFICATION TO THE DELEGATED SALESPERSON
     if (assignedRepId) {
       NOTIFICATIONS_DB.unshift({
@@ -936,9 +946,9 @@ function openNewDealModal() {
       stage: 'prospecting',
       probability: 20,
       ownerId: SESSION.id,
-      expectedClose: '30/05/2026',
-      createdAt: '23/05/2026',
-      lastActivity: '23/05/2026'
+      expectedClose: '30/06/2026',
+      createdAt: new Date().toLocaleDateString('vi-VN'),
+      lastActivity: new Date().toLocaleDateString('vi-VN')
     };
 
     DEALS_DB.unshift(newDealObj);
@@ -2245,9 +2255,9 @@ export function convertLeadToDeal(leadId) {
       stage: 'prospecting',
       probability: 20,
       ownerId: SESSION.id,
-      expectedClose: '30/05/2026',
-      createdAt: '23/05/2026',
-      lastActivity: '23/05/2026'
+      expectedClose: '30/06/2026',
+      createdAt: new Date().toLocaleDateString('vi-VN'),
+      lastActivity: new Date().toLocaleDateString('vi-VN')
     };
 
     DEALS_DB.unshift(newDeal);
@@ -3627,6 +3637,7 @@ export function simSubmitCaptureForm() {
       time: 'Vừa xong',
       user: 'Marketer Hệ thống'
     });
+    dispatchAssignmentEmail(newLeadObj);
   }
 
   // TC-001: Email confirmation simulator alert
@@ -4606,6 +4617,507 @@ export function setupMcnaFunnelEvents() {
     window.crmApp.triggerAuraAgentPipeline = triggerAuraAgentPipeline;
   }
 }
+
+/* ==========================================================================
+   CRM PIPELINE v1.0 (BA doc): LEAD->CUSTOMER MIRROR, ASSIGNMENT EMAIL,
+   CALL KPI TRACKING & ANTI-FAKE-CALL CONTROLS
+   ========================================================================== */
+
+const KPI_DEFAULT_DAILY_CALLS = 100;
+const CALL_MIN_DURATION_SEC = 20;     // outcome can't be logged before this
+const CALL_DUP_WINDOW_MIN = 5;        // same number can't be re-logged within
+const CALL_HOURLY_ANOMALY_LIMIT = 30; // beyond this calls get flagged
+const CALL_FAIL_REASONS = ['Không nghe máy', 'Thuê bao / khóa máy', 'Sai số điện thoại', 'Từ chối trao đổi', 'Hẹn gọi lại sau', 'Khác (ghi rõ ở ghi chú)'];
+
+function todayKey() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+}
+function cleanPhone(p) { return String(p || '').replace(/[\s\-\.]/g, ''); }
+function repNotifyEmail(rep) { return String(rep.notifyEmail || rep.email || '').trim(); }
+function repKpiTarget(rep) { return Number(rep.kpiDailyCalls) || KPI_DEFAULT_DAILY_CALLS; }
+function nowVN() { return new Date().toLocaleString('vi-VN'); }
+
+// ---- 1) Pipeline T1: mirror every new lead into the customer database ----
+function ensureCustomerFromLead(lead) {
+  const phoneKey = cleanPhone(lead.phone);
+  let companyId = null;
+
+  if (lead.leadType === 'b2b' && lead.company && lead.company !== 'Khách hàng cá nhân') {
+    let comp = COMPANIES_DB.find(c => (c.name || '').toLowerCase() === lead.company.toLowerCase());
+    if (!comp) {
+      comp = {
+        id: uid('cmp'), name: lead.company, industry: 'Chưa phân loại', size: '10-50 nhân sự',
+        website: '', phone: lead.phone, address: '', contactsCount: 1, dealsCount: 0, revenue: 0,
+        ownerId: lead.ownerId, notes: `Tự sinh từ Lead "${lead.name}" theo pipeline T1 (Tiếp nhận).`
+      };
+      COMPANIES_DB.unshift(comp);
+    }
+    companyId = comp.id;
+  }
+
+  const existed = CONTACTS_DB.find(c =>
+    cleanPhone(c.phone) === phoneKey ||
+    (lead.email && c.email && c.email.toLowerCase() === lead.email.toLowerCase())
+  );
+  if (existed) return existed;
+
+  const words = String(lead.name || '').trim().split(/\s+/);
+  const contact = {
+    id: uid('con'),
+    firstName: words[words.length - 1] || lead.name,
+    lastName: words[0] || '',
+    fullName: lead.name,
+    title: lead.leadType === 'b2b' ? 'Đại diện doanh nghiệp' : 'Khách tiêu dùng cá nhân',
+    companyId,
+    companyName: lead.leadType === 'b2b' ? (lead.company || '') : '',
+    phone: lead.phone,
+    email: lead.email || '',
+    source: lead.source,
+    ownerId: lead.ownerId,
+    tags: 'Từ-Lead-Mới',
+    dealsCount: 0,
+    lastActivity: new Date().toLocaleDateString('vi-VN'),
+    createdAt: new Date().toLocaleDateString('vi-VN'),
+    notes: `Khởi tạo tự động từ Lead mới theo pipeline T1 (nguồn: ${lead.source}).`
+  };
+  CONTACTS_DB.unshift(contact);
+  writeAuditLog(`Pipeline T1: Tự sinh hồ sơ khách hàng "${lead.name}" (${lead.leadType?.toUpperCase() || 'B2C'}) từ Lead mới`, 'Contacts Collection');
+  return contact;
+}
+
+// ---- 2) Assignment email: parameterized per-rep address, full outbox audit ----
+async function dispatchAssignmentEmail(lead) {
+  const rep = USERS_DB.find(u => u.id === lead.ownerId);
+  if (!rep) return;
+  const toEmail = repNotifyEmail(rep);
+
+  const mail = {
+    id: uid('mail'),
+    toEmail,
+    toName: rep.name,
+    subject: `🔥 [MCNA CRM] Bạn được giao Lead mới: ${lead.name} (${lead.phone})`,
+    body: `Chào ${rep.name},\n\nBạn vừa được phân công một Lead mới trên hệ thống MCNA CRM:\n\n• Khách hàng: ${lead.name}\n• SĐT: ${lead.phone}\n• Email: ${lead.email || '(không có)'}\n• Nguồn: ${lead.source}\n• Phân loại: ${(lead.leadType || 'b2c').toUpperCase()} | Ưu tiên: ${(lead.priority || 'warm').toUpperCase()}\n• Giá trị dự kiến: ${Number(lead.value || 0).toLocaleString('vi-VN')} ₫\n• Hạn xử lý: ${lead.deadline || 'sớm nhất có thể'}\n\nVui lòng đăng nhập CRM và liên hệ khách hàng ngay: ${typeof location !== 'undefined' ? location.origin : ''}\n\n— MCNA CRM (email tự động, không trả lời thư này)`,
+    relatedType: 'lead',
+    relatedId: lead.id,
+    status: 'pending',
+    error: '',
+    createdAt: nowVN(),
+    sentAt: ''
+  };
+  EMAIL_OUTBOX_DB.unshift(mail);
+
+  if (!toEmail) {
+    mail.status = 'skipped';
+    mail.error = 'Nhân sự chưa có email nhận thông báo (cấu hình tại trang KPI Cuộc Gọi)';
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: toEmail, toName: rep.name, subject: mail.subject, text: mail.body })
+    });
+    const out = await res.json().catch(() => ({}));
+    if (res.ok && out.sent) {
+      mail.status = 'sent';
+      mail.sentAt = nowVN();
+      toast(`📨 Đã gửi email giao việc tới ${rep.name} <${toEmail}>`, 'success');
+    } else if (out.reason === 'smtp_not_configured') {
+      mail.status = 'skipped';
+      mail.error = 'Máy chủ chưa cấu hình SMTP - email được lưu vào hàng đợi outbox';
+      toast(`📭 Email giao việc cho ${rep.name} đã vào hàng đợi (chưa cấu hình SMTP).`, 'warning');
+    } else {
+      mail.status = 'failed';
+      mail.error = out.error || `HTTP ${res.status}`;
+      toast(`⚠️ Gửi email giao việc thất bại: ${mail.error}`, 'error');
+    }
+  } catch (e) {
+    mail.status = 'failed';
+    mail.error = String(e?.message || e);
+  }
+  writeAuditLog(`Email giao Lead "${lead.name}" tới ${rep.name} <${toEmail || 'N/A'}> [${mail.status}]`, 'Email Outbox', mail.status === 'failed' ? 'bi_chan' : 'thanh_cong');
+}
+
+// ---- 3) Verified call sessions (anti-fake controls) ----
+let ACTIVE_CALL = null;
+let CALL_TICKER = null;
+
+function myCallsWithin(repId, ms) {
+  const cutoff = Date.now() - ms;
+  return CALL_LOGS_DB.filter(c => c.repId === repId && Number(c.tsEnd || 0) > cutoff);
+}
+
+export function openCallSession(targetType, targetId) {
+  if (!SESSION) return;
+  const target = targetType === 'lead'
+    ? LEADS_DB.find(x => x.id === targetId)
+    : CONTACTS_DB.find(x => x.id === targetId);
+  if (!target) { toast('Không tìm thấy khách hàng/lead để gọi!', 'error'); return; }
+
+  const name = target.name || target.fullName;
+  const phone = target.phone || '';
+
+  // Anti-fake guard: re-calling the same number inside the dedup window is blocked
+  const phoneKey = cleanPhone(phone);
+  const recentDup = CALL_LOGS_DB.find(c =>
+    c.repId === SESSION.id && cleanPhone(c.phone) === phoneKey &&
+    (Date.now() - Number(c.tsEnd || 0)) < CALL_DUP_WINDOW_MIN * 60 * 1000
+  );
+  if (recentDup) {
+    toast(`🔒 CHỐNG GỌI ẢO: Bạn vừa ghi nhận cuộc gọi tới số này chưa đầy ${CALL_DUP_WINDOW_MIN} phút trước. Không thể tạo phiên gọi trùng!`, 'error');
+    writeAuditLog(`Chặn phiên gọi trùng lặp tới ${phone} (anti-fake)`, 'Call KPI Control', 'bi_chan');
+    return;
+  }
+
+  ACTIVE_CALL = { targetType, targetId, targetName: name, phone, startTs: 0 };
+
+  const contentHtml = `
+    <div class="auth-body">
+      <div class="panel" style="background:#eef2ff; border:1.5px dashed #6366f1; padding:12px; border-radius:8px; margin-bottom:12px;">
+        <p style="font-size:12px; color:#4338ca; margin:0; line-height:1.6;">
+          <i class="fa-solid fa-shield-halved"></i> <strong>Cơ chế chống cuộc gọi ảo:</strong>
+          phiên gọi tính giờ thực, tối thiểu <strong>${CALL_MIN_DURATION_SEC} giây</strong> mới được ghi nhận;
+          một số điện thoại chỉ ghi nhận 1 lần mỗi ${CALL_DUP_WINDOW_MIN} phút;
+          KPI chỉ đếm <strong>khách hàng khác nhau</strong>; vượt ${CALL_HOURLY_ANOMALY_LIMIT} cuộc/giờ sẽ bị gắn cờ bất thường cho quản lý.
+        </p>
+      </div>
+      <div class="fr2">
+        <div class="fg"><label>Khách hàng</label><input type="text" readonly value="${esc(name)}" /></div>
+        <div class="fg"><label>SĐT hệ thống (không sửa được)</label><input type="text" readonly class="tmono" value="${esc(phone)}" /></div>
+      </div>
+      <div style="text-align:center; margin:14px 0;">
+        <a href="tel:${esc(phone)}" id="call-dial-btn" class="btn pr" style="font-size:15px; padding:10px 22px;" onclick="window.crmApp.beginDial()"><i class="fa-solid fa-phone-volume"></i> Bắt đầu cuộc gọi</a>
+        <div id="call-timer-box" style="display:none; margin-top:10px; font-family:var(--fd); font-size:26px; font-weight:800; color:#4f46e5;">
+          ⏱ <span id="call-timer">00:00</span>
+        </div>
+        <p id="call-min-hint" style="display:none; font-size:11px; color:var(--n500); margin-top:4px;">Cần tối thiểu ${CALL_MIN_DURATION_SEC} giây trước khi được ghi nhận kết quả…</p>
+      </div>
+      <div id="call-outcome-box" style="opacity:.45; pointer-events:none;">
+        <div class="fg">
+          <label>Kết quả tiếp cận *</label>
+          <div style="display:flex; gap:14px; padding:6px 2px;">
+            <label style="display:flex; align-items:center; gap:6px; font-weight:700; color:#059669; cursor:pointer;"><input type="radio" name="call-reach" value="yes" onchange="window.crmApp.onReachChange()"> ✅ Tiếp cận được</label>
+            <label style="display:flex; align-items:center; gap:6px; font-weight:700; color:#dc2626; cursor:pointer;"><input type="radio" name="call-reach" value="no" onchange="window.crmApp.onReachChange()"> ❌ Không tiếp cận được</label>
+          </div>
+        </div>
+        <div class="fg" id="call-reason-wrap" style="display:none;">
+          <label>Lý do không tiếp cận được * (bắt buộc)</label>
+          <select id="call-fail-reason">${CALL_FAIL_REASONS.map(r => `<option value="${esc(r)}">${esc(r)}</option>`).join('')}</select>
+        </div>
+        <div class="fg">
+          <label>Ghi chú cuộc gọi</label>
+          <textarea id="call-note" rows="2" placeholder="Nội dung trao đổi, cam kết tiếp theo..."></textarea>
+        </div>
+      </div>
+    </div>
+  `;
+  const footerHtml = `
+    <button class="btn bl" onclick="window.crmApp.cancelCallSession()">Hủy phiên</button>
+    <button class="btn pr" id="call-finish-btn" disabled onclick="window.crmApp.submitCallOutcome()"><i class="fa-solid fa-circle-check"></i> Kết thúc & Ghi nhận KPI</button>
+  `;
+  openModalElement(`📞 PHIÊN GỌI KHÁCH HÀNG CÓ KIỂM CHỨNG`, contentHtml, footerHtml);
+}
+
+export function beginDial() {
+  if (!ACTIVE_CALL || ACTIVE_CALL.startTs) return;
+  ACTIVE_CALL.startTs = Date.now();
+  const dialBtn = document.getElementById('call-dial-btn');
+  if (dialBtn) { dialBtn.style.opacity = '.5'; dialBtn.style.pointerEvents = 'none'; dialBtn.innerHTML = '<i class="fa-solid fa-phone"></i> Đang gọi…'; }
+  document.getElementById('call-timer-box')?.style.setProperty('display', 'block');
+  document.getElementById('call-min-hint')?.style.setProperty('display', 'block');
+
+  CALL_TICKER = setInterval(() => {
+    const el = document.getElementById('call-timer');
+    if (!el || !ACTIVE_CALL) { clearInterval(CALL_TICKER); return; }
+    const sec = Math.floor((Date.now() - ACTIVE_CALL.startTs) / 1000);
+    el.textContent = `${String(Math.floor(sec / 60)).padStart(2, '0')}:${String(sec % 60).padStart(2, '0')}`;
+    if (sec >= CALL_MIN_DURATION_SEC) {
+      const box = document.getElementById('call-outcome-box');
+      if (box) { box.style.opacity = '1'; box.style.pointerEvents = 'auto'; }
+      const fin = document.getElementById('call-finish-btn');
+      if (fin) fin.disabled = false;
+      const hint = document.getElementById('call-min-hint');
+      if (hint) hint.textContent = 'Đã đủ thời lượng tối thiểu - hãy chọn kết quả tiếp cận để ghi nhận.';
+    }
+  }, 1000);
+}
+
+export function onReachChange() {
+  const v = document.querySelector('input[name="call-reach"]:checked')?.value;
+  const wrap = document.getElementById('call-reason-wrap');
+  if (wrap) wrap.style.display = v === 'no' ? 'block' : 'none';
+}
+
+export function cancelCallSession() {
+  clearInterval(CALL_TICKER);
+  ACTIVE_CALL = null;
+  closeActiveModal();
+}
+
+export function submitCallOutcome() {
+  if (!ACTIVE_CALL || !ACTIVE_CALL.startTs) { toast('Bạn chưa bắt đầu cuộc gọi!', 'error'); return; }
+  const durationSec = Math.floor((Date.now() - ACTIVE_CALL.startTs) / 1000);
+  if (durationSec < CALL_MIN_DURATION_SEC) {
+    toast(`🔒 CHỐNG GỌI ẢO: Cuộc gọi mới ${durationSec}s, chưa đạt tối thiểu ${CALL_MIN_DURATION_SEC}s!`, 'error');
+    return;
+  }
+  const reachVal = document.querySelector('input[name="call-reach"]:checked')?.value;
+  if (!reachVal) { toast('Hãy chọn kết quả: Tiếp cận được / Không tiếp cận được!', 'error'); return; }
+  const reached = reachVal === 'yes';
+  const failReason = reached ? '' : (document.getElementById('call-fail-reason')?.value || '');
+  if (!reached && !failReason) { toast('Bắt buộc chọn lý do khi không tiếp cận được khách hàng!', 'error'); return; }
+  const note = document.getElementById('call-note')?.value || '';
+
+  // Velocity anomaly: too many calls in the last hour gets flagged for managers
+  const lastHour = myCallsWithin(SESSION.id, 60 * 60 * 1000);
+  const flagged = lastHour.length + 1 > CALL_HOURLY_ANOMALY_LIMIT;
+
+  const log = {
+    id: uid('call'),
+    repId: SESSION.id,
+    repName: SESSION.name,
+    targetType: ACTIVE_CALL.targetType,
+    targetId: ACTIVE_CALL.targetId,
+    targetName: ACTIVE_CALL.targetName,
+    phone: ACTIVE_CALL.phone,
+    startedAt: new Date(ACTIVE_CALL.startTs).toLocaleString('vi-VN'),
+    endedAt: nowVN(),
+    durationSec,
+    reached,
+    failReason,
+    note,
+    dateKey: todayKey(),
+    flagged,
+    tsEnd: Date.now()
+  };
+  CALL_LOGS_DB.unshift(log);
+
+  // Mirror into the activity timeline so deal workflow checks (TC-011) see it
+  ACTIVITIES_DB.unshift({
+    id: uid('act'),
+    type: 'call',
+    title: `📞 Cuộc gọi KPI với ${ACTIVE_CALL.targetName}`,
+    contactId: ACTIVE_CALL.targetType === 'contact' ? ACTIVE_CALL.targetId : '',
+    dealId: '',
+    ownerId: SESSION.id,
+    datetime: nowVN(),
+    duration: `${durationSec} giây`,
+    outcome: reached ? 'Tiếp cận thành công' : `Không tiếp cận: ${failReason}`,
+    notes: note,
+    direction: 'outbound',
+    user: SESSION.name
+  });
+
+  // Reached lead advances in the funnel: new -> contacting
+  if (reached && ACTIVE_CALL.targetType === 'lead') {
+    const lead = LEADS_DB.find(l => l.id === ACTIVE_CALL.targetId);
+    if (lead && (lead.status === 'new' || lead.status === 'pending_assignment')) lead.status = 'contacting';
+  }
+
+  if (flagged) {
+    NOTIFICATIONS_DB.unshift({
+      id: uid('ntf'), type: 'system', unread: true, time: 'Vừa xong',
+      title: '🚨 CẢNH BÁO KPI BẤT THƯỜNG',
+      body: `Sales ${SESSION.name} vượt ${CALL_HOURLY_ANOMALY_LIMIT} cuộc gọi/giờ - cuộc gọi bị gắn cờ chờ quản lý xác minh.`
+    });
+    writeAuditLog(`KPI Anomaly: ${SESSION.name} vượt ngưỡng ${CALL_HOURLY_ANOMALY_LIMIT} cuộc/giờ`, 'Call KPI Control', 'bi_chan');
+    toast('🚨 Cuộc gọi được ghi nhận nhưng BỊ GẮN CỜ bất thường (quá nhiều cuộc/giờ)!', 'warning');
+  } else {
+    toast(reached
+      ? `✅ Ghi nhận tiếp cận thành công ${ACTIVE_CALL.targetName} (${durationSec}s) vào KPI!`
+      : `📵 Đã ghi nhận KHÔNG tiếp cận được (${failReason}).`, reached ? 'success' : 'info');
+  }
+  writeAuditLog(`Ghi nhận cuộc gọi ${durationSec}s tới ${ACTIVE_CALL.targetName} [${reached ? 'TIẾP CẬN ĐƯỢC' : 'THẤT BẠI: ' + failReason}]`, 'Call KPI Log');
+
+  clearInterval(CALL_TICKER);
+  ACTIVE_CALL = null;
+  closeActiveModal();
+  if (CUR_PAGE === 'kpi-calls') renderPageContent('kpi-calls');
+}
+
+// ---- 4) Per-rep parameterized settings (NO hardcoded emails) ----
+export function editRepNotifyEmail(repId) {
+  const rep = USERS_DB.find(u => u.id === repId);
+  if (!rep) return;
+  const v = prompt(`Email nhận thông báo giao việc của ${rep.name}:`, repNotifyEmail(rep));
+  if (v === null) return;
+  if (v.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim())) { toast('Email không hợp lệ!', 'error'); return; }
+  rep.notifyEmail = v.trim();
+  writeAuditLog(`Cập nhật email nhận thông báo của ${rep.name} thành <${rep.notifyEmail || '(trống)'}>`, 'Users');
+  toast(`Đã lưu email nhận thông báo cho ${rep.name}. Thay đổi tự đồng bộ lên Supabase.`, 'success');
+  if (CUR_PAGE === 'kpi-calls') renderPageContent('kpi-calls');
+}
+
+export function editRepKpiTarget(repId) {
+  const rep = USERS_DB.find(u => u.id === repId);
+  if (!rep) return;
+  const v = prompt(`Chỉ tiêu cuộc gọi/ngày của ${rep.name}:`, String(repKpiTarget(rep)));
+  if (v === null) return;
+  const n = parseInt(v, 10);
+  if (!n || n < 1) { toast('Chỉ tiêu phải là số nguyên dương!', 'error'); return; }
+  rep.kpiDailyCalls = n;
+  writeAuditLog(`Cập nhật KPI cuộc gọi/ngày của ${rep.name} = ${n}`, 'Users');
+  toast(`Đã đặt KPI ${n} cuộc gọi/ngày cho ${rep.name}.`, 'success');
+  if (CUR_PAGE === 'kpi-calls') renderPageContent('kpi-calls');
+}
+
+// ---- 5) KPI page ----
+function repDayStats(repId) {
+  const tk = todayKey();
+  const logs = CALL_LOGS_DB.filter(c => c.repId === repId && c.dateKey === tk);
+  const distinct = new Set(logs.map(c => cleanPhone(c.phone))).size;
+  const reached = logs.filter(c => c.reached).length;
+  const flaggedN = logs.filter(c => c.flagged).length;
+  const avgDur = logs.length ? Math.round(logs.reduce((s, c) => s + Number(c.durationSec || 0), 0) / logs.length) : 0;
+  return { logs, total: logs.length, distinct, reached, notReached: logs.length - reached, flaggedN, avgDur };
+}
+
+function renderKpiCallsPage() {
+  const isMgmt = SESSION.role === 'superadmin' || SESSION.role === 'manager';
+  const isSales = SESSION.role === 'sales';
+  let html = `<div class="page-container animate-fadeIn">`;
+
+  // Personal block for sales reps
+  if (isSales) {
+    const st = repDayStats(SESSION.id);
+    const target = repKpiTarget(SESSION);
+    const pct = Math.min(100, Math.round((st.distinct / target) * 100));
+    const myLeads = LEADS_DB.filter(l => l.ownerId === SESSION.id && l.status !== 'lost');
+    const myContacts = CONTACTS_DB.filter(c => c.ownerId === SESSION.id);
+    html += `
+      <div class="panel" style="padding:18px; margin-bottom:14px;">
+        <h3 style="font-family:var(--fd); font-weight:800; margin:0 0 4px 0;">🎯 KPI của tôi hôm nay (${todayKey()})</h3>
+        <p style="font-size:12px; color:var(--n500); margin:0 0 12px 0;">Chỉ tiêu: gọi <strong>${target} khách hàng khác nhau/ngày</strong>. Chỉ cuộc gọi có kiểm chứng (≥${CALL_MIN_DURATION_SEC}s, không trùng số trong ${CALL_DUP_WINDOW_MIN} phút) mới được tính.</p>
+        <div style="display:grid; grid-template-columns:repeat(auto-fit, minmax(130px,1fr)); gap:10px; margin-bottom:12px;">
+          <div class="panel" style="padding:10px; text-align:center; background:#eef2ff;"><div style="font-size:22px; font-weight:800; color:#4f46e5;">${st.distinct}/${target}</div><div style="font-size:11px; color:var(--n500);">KH đã gọi (KPI)</div></div>
+          <div class="panel" style="padding:10px; text-align:center;"><div style="font-size:22px; font-weight:800;">${st.total}</div><div style="font-size:11px; color:var(--n500);">Tổng cuộc gọi</div></div>
+          <div class="panel" style="padding:10px; text-align:center; background:#ecfdf5;"><div style="font-size:22px; font-weight:800; color:#059669;">${st.reached}</div><div style="font-size:11px; color:var(--n500);">Tiếp cận được</div></div>
+          <div class="panel" style="padding:10px; text-align:center; background:#fef2f2;"><div style="font-size:22px; font-weight:800; color:#dc2626;">${st.notReached}</div><div style="font-size:11px; color:var(--n500);">Không tiếp cận</div></div>
+          <div class="panel" style="padding:10px; text-align:center;"><div style="font-size:22px; font-weight:800; color:${st.flaggedN ? '#dc2626' : 'var(--n800)'};">${st.flaggedN}</div><div style="font-size:11px; color:var(--n500);">Bị gắn cờ</div></div>
+        </div>
+        <div style="background:var(--n100); border-radius:99px; height:14px; overflow:hidden;">
+          <div style="height:100%; width:${pct}%; background:${pct >= 100 ? '#059669' : '#6366f1'}; transition:width .4s;"></div>
+        </div>
+        <p style="font-size:11.5px; margin-top:4px; font-weight:700; color:${pct >= 100 ? '#059669' : '#4f46e5'};">${pct}% chỉ tiêu ngày ${pct >= 100 ? '- ĐÃ ĐẠT KPI! 🎉' : ''}</p>
+        <div style="display:flex; gap:8px; margin-top:12px; flex-wrap:wrap; align-items:center;">
+          <select id="kpi-call-target" style="flex:1; min-width:240px;">
+            <optgroup label="— Leads của tôi (${myLeads.length}) —">
+              ${myLeads.map(l => `<option value="lead|${l.id}">${esc(l.name)} · ${esc(l.phone)} [${esc(l.status)}]</option>`).join('')}
+            </optgroup>
+            <optgroup label="— Khách hàng của tôi (${myContacts.length}) —">
+              ${myContacts.slice(0, 200).map(c => `<option value="contact|${c.id}">${esc(c.fullName)} · ${esc(c.phone)}</option>`).join('')}
+            </optgroup>
+          </select>
+          <button class="btn pr" onclick="window.crmApp.launchCallFromPicker()"><i class="fa-solid fa-phone-volume"></i> Mở phiên gọi có kiểm chứng</button>
+        </div>
+      </div>`;
+
+    html += `
+      <div class="panel" style="padding:16px; margin-bottom:14px;">
+        <h4 style="font-family:var(--fd); font-weight:800; margin:0 0 10px 0;">📒 Nhật ký cuộc gọi hôm nay của tôi</h4>
+        ${renderCallLogTable(st.logs)}
+      </div>`;
+  }
+
+  // Management block
+  if (isMgmt) {
+    const reps = USERS_DB.filter(u => u.role === 'sales');
+    html += `
+      <div class="panel" style="padding:18px; margin-bottom:14px;">
+        <h3 style="font-family:var(--fd); font-weight:800; margin:0 0 4px 0;">🛡️ Giám sát KPI cuộc gọi đội Sales - ${todayKey()}</h3>
+        <p style="font-size:12px; color:var(--n500); margin:0 0 12px 0;">KPI đếm <strong>khách hàng khác nhau</strong> đã gọi có kiểm chứng. Email giao việc của từng sales được <strong>tham số hóa</strong> - bấm ✉️ để sửa, hệ thống tự đồng bộ Supabase.</p>
+        <div style="overflow-x:auto;">
+        <table class="tbl" style="width:100%; font-size:12px;">
+          <thead><tr>
+            <th style="text-align:left;">Sales Rep</th><th>Email nhận thông báo</th><th>Chỉ tiêu/ngày</th>
+            <th>KH đã gọi</th><th>Tiếp cận</th><th>Không tiếp cận</th><th>TB giây/cuộc</th><th>Gắn cờ</th><th>Trạng thái KPI</th>
+          </tr></thead>
+          <tbody>
+          ${reps.map(rep => {
+            const st = repDayStats(rep.id);
+            const target = repKpiTarget(rep);
+            const pct = Math.round((st.distinct / target) * 100);
+            const status = st.flaggedN > 0
+              ? '<span style="background:#fef2f2; color:#dc2626; padding:2px 8px; border-radius:99px; font-weight:800;">🚨 BẤT THƯỜNG</span>'
+              : (st.distinct >= target
+                ? '<span style="background:#ecfdf5; color:#059669; padding:2px 8px; border-radius:99px; font-weight:800;">✅ ĐẠT</span>'
+                : `<span style="background:#fffbeb; color:#b45309; padding:2px 8px; border-radius:99px; font-weight:800;">⏳ ${pct}%</span>`);
+            return `<tr style="border-top:1px solid var(--bd);">
+              <td style="text-align:left; font-weight:700;">${esc(rep.name)}<div style="font-size:10.5px; color:var(--n500); font-weight:400;">${esc(rep.dept || '')}</div></td>
+              <td class="tmono" style="font-size:11px;">${esc(repNotifyEmail(rep)) || '<i style="color:#dc2626;">chưa có</i>'}
+                <button class="btn bl xs" style="padding:2px 6px;" title="Sửa email nhận thông báo" onclick="window.crmApp.editRepNotifyEmail('${rep.id}')">✉️</button></td>
+              <td>${target} <button class="btn bl xs" style="padding:2px 6px;" title="Sửa chỉ tiêu" onclick="window.crmApp.editRepKpiTarget('${rep.id}')">⚙️</button></td>
+              <td style="font-weight:800; color:#4f46e5;">${st.distinct}</td>
+              <td style="color:#059669; font-weight:700;">${st.reached}</td>
+              <td style="color:#dc2626; font-weight:700;">${st.notReached}</td>
+              <td>${st.avgDur}s</td>
+              <td>${st.flaggedN ? `<strong style="color:#dc2626;">${st.flaggedN} ⚠</strong>` : '0'}</td>
+              <td>${status}</td>
+            </tr>`;
+          }).join('')}
+          </tbody>
+        </table>
+        </div>
+      </div>`;
+
+    const allToday = CALL_LOGS_DB.filter(c => c.dateKey === todayKey());
+    html += `
+      <div class="panel" style="padding:16px; margin-bottom:14px;">
+        <h4 style="font-family:var(--fd); font-weight:800; margin:0 0 10px 0;">📒 Toàn bộ cuộc gọi hôm nay (${allToday.length})</h4>
+        ${renderCallLogTable(allToday.slice(0, 50), true)}
+      </div>
+      <div class="panel" style="padding:16px; margin-bottom:14px;">
+        <h4 style="font-family:var(--fd); font-weight:800; margin:0 0 10px 0;">📨 Email Outbox - nhật ký gửi thông báo giao việc (${EMAIL_OUTBOX_DB.length})</h4>
+        <div style="overflow-x:auto;">
+        <table class="tbl" style="width:100%; font-size:12px;">
+          <thead><tr><th style="text-align:left;">Thời gian</th><th style="text-align:left;">Người nhận</th><th style="text-align:left;">Tiêu đề</th><th>Trạng thái</th></tr></thead>
+          <tbody>
+          ${EMAIL_OUTBOX_DB.slice(0, 15).map(m => `<tr style="border-top:1px solid var(--bd);">
+            <td style="text-align:left; white-space:nowrap;">${esc(m.createdAt)}</td>
+            <td style="text-align:left;">${esc(m.toName)}<div class="tmono" style="font-size:10.5px; color:var(--n500);">${esc(m.toEmail)}</div></td>
+            <td style="text-align:left;">${esc(m.subject)}</td>
+            <td>${m.status === 'sent' ? '<span style="color:#059669; font-weight:800;">✅ Đã gửi</span>' : m.status === 'failed' ? `<span style="color:#dc2626; font-weight:800;" title="${esc(m.error)}">❌ Lỗi</span>` : `<span style="color:#b45309; font-weight:800;" title="${esc(m.error)}">📭 Hàng đợi</span>`}</td>
+          </tr>`).join('') || '<tr><td colspan="4" style="padding:14px; color:var(--n500);">Chưa có email nào - hãy tạo lead mới và gán cho sales.</td></tr>'}
+          </tbody>
+        </table>
+        </div>
+      </div>`;
+  }
+
+  if (!isSales && !isMgmt) html += `<div class="panel" style="padding:20px;">Vai trò của bạn không tham gia KPI cuộc gọi.</div>`;
+  html += `</div>`;
+  return html;
+}
+
+function renderCallLogTable(logs, showRep = false) {
+  if (!logs.length) return '<p style="font-size:12px; color:var(--n500); padding:8px 0;">Chưa có cuộc gọi nào được ghi nhận hôm nay.</p>';
+  return `<div style="overflow-x:auto;"><table class="tbl" style="width:100%; font-size:12px;">
+    <thead><tr>${showRep ? '<th style="text-align:left;">Sales</th>' : ''}<th style="text-align:left;">Khách hàng</th><th>SĐT</th><th>Bắt đầu</th><th>Thời lượng</th><th>Kết quả</th><th style="text-align:left;">Lý do / Ghi chú</th></tr></thead>
+    <tbody>${logs.map(c => `<tr style="border-top:1px solid var(--bd); ${c.flagged ? 'background:#fff7ed;' : ''}">
+      ${showRep ? `<td style="text-align:left; font-weight:700;">${esc(c.repName)}</td>` : ''}
+      <td style="text-align:left; font-weight:700;">${esc(c.targetName)} ${c.flagged ? '<span title="Cuộc gọi bị gắn cờ bất thường">🚩</span>' : ''}</td>
+      <td class="tmono">${esc(c.phone)}</td>
+      <td style="white-space:nowrap;">${esc(c.startedAt)}</td>
+      <td style="font-weight:700;">${c.durationSec}s</td>
+      <td>${c.reached ? '<span style="color:#059669; font-weight:800;">✅ Tiếp cận</span>' : '<span style="color:#dc2626; font-weight:800;">❌ Thất bại</span>'}</td>
+      <td style="text-align:left; color:var(--n600);">${esc(c.failReason || '')}${c.note ? `<div style="font-size:10.5px; color:var(--n500);">${esc(c.note)}</div>` : ''}</td>
+    </tr>`).join('')}</tbody></table></div>`;
+}
+
+export function launchCallFromPicker() {
+  const v = document.getElementById('kpi-call-target')?.value;
+  if (!v) { toast('Hãy chọn một khách hàng/lead để gọi!', 'error'); return; }
+  const [type, id] = v.split('|');
+  openCallSession(type, id);
+}
+
+// Expose pipeline & KPI methods for inline handlers
+Object.assign(window.crmApp || (window.crmApp = {}), {
+  openCallSession, beginDial, onReachChange, cancelCallSession, submitCallOutcome,
+  editRepNotifyEmail, editRepKpiTarget, launchCallFromPicker
+});
 
 async function init() {
   // Load durable data from Supabase first; fall back to in-memory seeds

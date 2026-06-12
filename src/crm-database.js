@@ -113,6 +113,8 @@ export const PRODUCTS_DB = [];
 export const TICKETS_DB = [];
 export const AUDIT_LOG_DB = [];
 export const NOTIFICATIONS_DB = [];
+export const CALL_LOGS_DB = [];    // verified call sessions for daily KPI tracking
+export const EMAIL_OUTBOX_DB = []; // every assignment email the system dispatches
 
 // 12 Months Revenue seed data (last June to current May 2026)
 export const REVENUE_DATA = [

@@ -9,7 +9,7 @@ import { createClient } from '@supabase/supabase-js';
 import {
   USERS_DB, COMPANIES_DB, CONTACTS_DB, LEADS_DB, DEALS_DB, TASKS_DB,
   ACTIVITIES_DB, QUOTES_DB, INVOICES_DB, PRODUCTS_DB, TICKETS_DB,
-  AUDIT_LOG_DB, NOTIFICATIONS_DB, REVENUE_DATA
+  AUDIT_LOG_DB, NOTIFICATIONS_DB, CALL_LOGS_DB, EMAIL_OUTBOX_DB, REVENUE_DATA
 } from './crm-database.js';
 
 // Known typed columns per table (everything else is folded into `extra`).
@@ -27,6 +27,8 @@ const TABLE_COLUMNS = {
   tickets: ['number','subject','contactId','contactName','channel','priority','status','agentId','createdAt','lastReply','slaHours','tags','messages'],
   audit_log: ['timestamp','user','action','resource','ip','status'],
   notifications: ['type','title','body','content','time','unread','userId','user'],
+  call_logs: ['repId','repName','targetType','targetId','targetName','phone','startedAt','endedAt','durationSec','reached','failReason','note','dateKey','flagged'],
+  email_outbox: ['toEmail','toName','subject','body','relatedType','relatedId','status','error','createdAt','sentAt'],
 };
 
 const TABLE_BINDINGS = {
@@ -43,6 +45,8 @@ const TABLE_BINDINGS = {
   tickets: TICKETS_DB,
   audit_log: AUDIT_LOG_DB,
   notifications: NOTIFICATIONS_DB,
+  call_logs: CALL_LOGS_DB,
+  email_outbox: EMAIL_OUTBOX_DB,
 };
 
 const SYNC_INTERVAL_MS = 4000;
