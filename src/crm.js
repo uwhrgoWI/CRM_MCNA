@@ -19,6 +19,12 @@ import {
   renderReportsPage, renderInvoicesPage, renderSalesToolkitPage, renderMcnaFunnelPage, renderNotificationsPage, esc, fmtVND
 } from './crm-templates.js';
 
+// Collision-proof record id generator. Length-based ids (`led-${arr.length+1}`)
+// overwrote existing rows once records were deleted or ids overlapped the seeds.
+function uid(prefix) {
+  return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+}
+
 // === GLOBAL STATE ===
 let SESSION = null;
 let CUR_PAGE = 'login';
@@ -834,7 +840,7 @@ function openNewLeadModalForm() {
     const assignedRepId = ownerId || SESSION.id;
 
     const newLeadObj = {
-      id: `led-${LEADS_DB.length + 1}`,
+      id: uid('led'),
       leadType: type,
       name,
       company: comp,
@@ -920,7 +926,7 @@ function openNewDealModal() {
     }
 
     const newDealObj = {
-      id: `dea-${DEALS_DB.length + 1}`,
+      id: uid('dea'),
       name: title,
       contactId: selectedContact.id,
       contactName: selectedContact.fullName,
@@ -1063,7 +1069,7 @@ export function logDealActivity(dealId) {
   }
 
   const newActObj = {
-    id: `act-${ACTIVITIES_DB.length + 1}`,
+    id: uid('act'),
     type,
     title: `${type === 'call' ? 'Cuộc gọi thoại' : type === 'meeting' ? 'Buổi gặp mặt' : 'Email trao đổi'}`,
     contactId: dealObj.contactId,
@@ -1170,7 +1176,7 @@ function openQuotationsCalculatorDialog() {
     let total = subtotal + (document.getElementById('qb-vat-toggle').checked ? vat : 0);
 
     const newQuoteObj = {
-      id: `qte-${QUOTES_DB.length + 1}`,
+      id: uid('qte'),
       number: `BG-2026-${(QUOTES_DB.length + 1).toString().padStart(4, "0")}`,
       contactId: contact.id,
       contactName: contact.fullName,
@@ -1459,7 +1465,7 @@ function openTicketCreatorForm() {
     }
 
     const newTicket = {
-      id: `tk-${TICKETS_DB.length + 1}`,
+      id: uid('tk'),
       number: `TK-${(TICKETS_DB.length + 1).toString().padStart(4, "0")}`,
       subject: `${sub} [${contact.companyName}]`,
       contactId: contact.id,
@@ -1637,7 +1643,7 @@ function openCompanyCreatorForm() {
     }
 
     const nComp = {
-      id: `comp-${COMPANIES_DB.length + 1}`,
+      id: uid('cmp'),
       name,
       industry,
       size,
@@ -1726,7 +1732,7 @@ function openContactCreatorForm() {
     }
 
     const nObj = {
-      id: `con-${CONTACTS_DB.length + 1}`,
+      id: uid('con'),
       firstName: fn,
       lastName: ln,
       fullName: `${ln} ${fn}`,
@@ -1912,7 +1918,7 @@ function openActivityCreatorForm() {
     }
 
     const nAct = {
-      id: `act-${ACTIVITIES_DB.length + 1}`,
+      id: uid('act'),
       title,
       type,
       contactId,
@@ -2009,7 +2015,7 @@ function openInvoiceCreatorForm() {
     }
 
     const nInv = {
-      id: `inv-${INVOICES_DB.length + 1}`,
+      id: uid('inv'),
       number: num,
       quoteId,
       contactId,
@@ -2103,7 +2109,7 @@ function openProductCreatorForm() {
     }
 
     const nProd = {
-      id: `prod-${PRODUCTS_DB.length + 1}`,
+      id: uid('prd'),
       name,
       code,
       category,
@@ -2169,7 +2175,7 @@ function openTaskCreatorForm() {
     }
 
     const nTsk = {
-      id: `tsk-${TASKS_DB.length + 1}`,
+      id: uid('tsk'),
       title,
       type: 'Follow-up',
       description: document.getElementById('m-task-desc').value || 'Không có mô tả bổ sung.',
@@ -2229,7 +2235,7 @@ export function convertLeadToDeal(leadId) {
   const lead = LEADS_DB.find(l => l.id === leadId);
   if (lead) {
     const newDeal = {
-      id: `dea-${DEALS_DB.length + 1}`,
+      id: uid('dea'),
       name: `Hợp đồng cung cấp cho ${lead.company}`,
       contactId: 'con-1',
       contactName: lead.name,
@@ -3552,7 +3558,7 @@ export function simSubmitCaptureForm() {
   } else {
     // Create new contact in DB
     CONTACTS_DB.unshift({
-      id: `con-${CONTACTS_DB.length + 50}`,
+      id: uid('con'),
       firstName: name.split(' ').pop() || name,
       lastName: name.split(' ')[0] || '',
       fullName: name,
@@ -3591,7 +3597,7 @@ export function simSubmitCaptureForm() {
   // Write new Lead to database
   const assignedName = isAssignedPending ? 'Hàng Chờ Pending-Queue (Mọi Sales đầy tải >= 5)' : salesUser.name;
   const newLeadObj = {
-    id: `led-${LEADS_DB.length + 15}`,
+    id: uid('led'),
     leadType: 'b2b',
     name,
     company: `${name} SMB Co`,
@@ -3669,7 +3675,7 @@ export function simAutoScoringRoute() {
 
   // Promote Lead to Deal in prospecting stage (forces the user to log a call to transition)
   const newDeal = {
-    id: `dea-${DEALS_DB.length + 12}`,
+    id: uid('dea'),
     name: `Gói ${need} cho ${latestLead.name}`,
     contactId: `con-${CONTACTS_DB.length}`,
     contactName: latestLead.name,
@@ -3901,7 +3907,8 @@ export function simRunEndToEndFlow() {
     }
 
     const newLeadObj = {
-      id: `led-${LEADS_DB.length + 101}`,
+      id: uid('led'),
+      leadType: 'b2b',
       name: leadName,
       company: "Bách Hóa Xanh (Mô phỏng)",
       phone: "0345991823",
@@ -3931,7 +3938,7 @@ export function simRunEndToEndFlow() {
       }
 
       const newDeal = {
-        id: `dea-${DEALS_DB.length + 201}`,
+        id: uid('dea'),
         name: `Gói CRM Core Pack cho ${leadName}`,
         contactId: `con-autoflow-${Date.now()}`,
         contactName: leadName,
@@ -4419,7 +4426,7 @@ export function triggerAuraAgentPipeline(leadObj) {
     addLog(`Đang khởi hoạt sàng lọc & phân tích thông tin gói hàng...`);
 
     await new Promise(resolve => setTimeout(resolve, 800));
-    const newDealId = `dea-auto-${DEALS_DB.length + 101}`;
+    const newDealId = uid('dea-auto');
     const newDeal = {
       id: newDealId,
       name: `Tư vấn Gói Giải pháp Cá Nhân ${leadObj.name}`,
@@ -4454,7 +4461,7 @@ export function triggerAuraAgentPipeline(leadObj) {
     addLog(`Lọc sản phẩm hệ thống tương thích, dự phòng soạn thảo biểu mẫu báo giá...`);
 
     await new Promise(resolve => setTimeout(resolve, 800));
-    const newQuoteId = `qte-auto-${QUOTES_DB.length + 101}`;
+    const newQuoteId = uid('qte-auto');
     const newQuoteNumber = `BG-AG-${Date.now().toString().slice(-4)}`;
     const subtotal = leadObj.value;
     const vat = Math.round(subtotal * 0.1);
@@ -4498,7 +4505,7 @@ export function triggerAuraAgentPipeline(leadObj) {
     addLog(`Vận hành đối soát kế toán tài vụ, cập nhật nợ nần & xuất sổ sách...`);
 
     await new Promise(resolve => setTimeout(resolve, 800));
-    const newInvoiceId = `inv-auto-${INVOICES_DB.length + 101}`;
+    const newInvoiceId = uid('inv-auto');
     const newInvoiceNumber = `HD-AG-${Date.now().toString().slice(-4)}`;
     
     // Add Invoice

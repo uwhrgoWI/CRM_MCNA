@@ -117,8 +117,11 @@ export async function bootLoadFromCloud() {
 
   try {
     const tables = Object.keys(TABLE_BINDINGS);
+    // seq DESC: the app's convention is newest-first (records are unshifted
+    // onto the front of each array), so loads must match or new rows end up
+    // buried at the bottom of every list after a reload.
     const queries = tables.map(t =>
-      supabase.from(t).select('*').order('seq', { ascending: true }).limit(2000)
+      supabase.from(t).select('*').order('seq', { ascending: false }).limit(2000)
     );
     queries.push(supabase.from('revenue_months').select('*').order('seq', { ascending: true }));
 
@@ -140,6 +143,15 @@ export async function bootLoadFromCloud() {
       for (const row of results[idx].data || []) arr.push(rowToObject(row));
       takeSnapshot(t);
     });
+
+    // Heal legacy rows: leads created by older builds lack leadType and were
+    // invisible in both the B2B and B2C tabs. Mutating after the snapshot
+    // means the sync loop writes the fix back to Supabase automatically.
+    for (const l of LEADS_DB) {
+      if (!l.leadType) {
+        l.leadType = (l.company && l.company !== 'Khách hàng cá nhân') ? 'b2b' : 'b2c';
+      }
+    }
 
     // Revenue history is load-only (charts never mutate it).
     const revRows = results[results.length - 1].data || [];
