@@ -4639,7 +4639,12 @@ async function init() {
     if (cloudOk) {
       toast(`☁️ Đã kết nối Supabase: ${CONTACTS_DB.length} khách hàng, ${USERS_DB.length} nhân sự. Mọi thay đổi được lưu tự động.`, 'success');
     } else {
-      toast('⚠️ Chế độ offline demo: dữ liệu sẽ mất khi tải lại trang.', 'warning');
+      toast('⚠️ MẤT KẾT NỐI SUPABASE: đang chạy dữ liệu demo, thay đổi sẽ KHÔNG được lưu!', 'error', 12000);
+      const banner = document.createElement('div');
+      banner.id = 'offline-banner';
+      banner.style.cssText = 'position:fixed;bottom:0;left:0;right:0;z-index:99999;background:#dc2626;color:#fff;text-align:center;padding:8px 16px;font-size:13px;font-weight:700;font-family:sans-serif;';
+      banner.textContent = '⚠️ KHÔNG KẾT NỐI ĐƯỢC SUPABASE — dữ liệu hiển thị là bản demo tạm, mọi thay đổi sẽ mất khi tải lại trang. Hãy tải lại (F5) để thử kết nối lại.';
+      document.body.appendChild(banner);
     }
   }, 800);
 }

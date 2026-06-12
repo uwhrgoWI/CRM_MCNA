@@ -106,8 +106,11 @@ function takeSnapshot(table) {
 // Boot: pull every table from Supabase into the in-memory arrays.
 // Returns true when cloud data is live; false -> caller falls back to seeds.
 export async function bootLoadFromCloud() {
-  const url = import.meta.env.VITE_SUPABASE_URL;
-  const key = import.meta.env.VITE_SUPABASE_ANON_KEY;
+  // Strip BOM/zero-width/whitespace from env values: a stray U+FEFF smuggled
+  // in via CLI piping makes the browser reject every request header.
+  const clean = (v) => (v || '').replace(/[^\x21-\x7E]/g, '');
+  const url = clean(import.meta.env.VITE_SUPABASE_URL);
+  const key = clean(import.meta.env.VITE_SUPABASE_ANON_KEY);
   if (!url || !key) {
     console.warn('[Supabase] VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY chưa cấu hình - chạy chế độ offline.');
     return false;
