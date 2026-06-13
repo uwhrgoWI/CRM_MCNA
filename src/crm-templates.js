@@ -8,6 +8,22 @@ import {
 
 import { svgBarChart, svgLineChart, svgDonut, svgFunnel, svgSparkline } from './crm-charts.js';
 
+// Deterministic privacy masks for customer contact channels (B2C policy):
+// no more random hiding - both channels are masked the same way everywhere,
+// and only authorized roles can reveal them (with an audit trail).
+export const maskPhone = (p) => {
+  const s = String(p || '');
+  if (s.length < 5) return '•••••';
+  return s.slice(0, 3) + '•••••' + s.slice(-2);
+};
+export const maskEmail = (e) => {
+  const s = String(e || '');
+  const at = s.indexOf('@');
+  if (at < 1) return '•••@•••';
+  const user = s.slice(0, at);
+  return (user.length <= 2 ? user[0] + '•' : user.slice(0, 2) + '•••') + s.slice(at);
+};
+
 // Global formatting tools
 export const esc = (str) => {
   if (!str) return '';
@@ -328,10 +344,14 @@ export function buildSidebar(session, activePage, isCollapsed) {
   const role = session.role;
   let navHtml = '';
 
-  // Unified business flow section included for all roles
+  // Business flow section - items are filtered by role (RBAC):
+  // marketers (manager) never see quotes/invoices; support only sees SLA tickets.
+  const canSeeFinance = role === 'superadmin' || role === 'sales';
+  const isSupport = role === 'support';
   const flowSecHtml = `
     <div class="nav-sec">
       <p class="nav-sec-label" style="display:flex; align-items:center; gap:5px; color:#4f46e5; font-weight:800; font-size:10.5px; letter-spacing:0.5px; text-transform:uppercase;"><i class="fa-solid fa-route animate-pulse"></i> Quy Trình Kinh Doanh 5 Bước</p>
+      ${!isSupport ? `
       <div class="ni ${activePage === 'leads' ? 'active' : ''}" data-page="leads">
         <span class="ni-ic" style="color:#6366f1;"><i class="fa-solid fa-filter"></i></span>
         <span class="ni-txt">1. Tiếp Nhận Leads</span>
@@ -341,7 +361,8 @@ export function buildSidebar(session, activePage, isCollapsed) {
         <span class="ni-ic" style="color:#0ea5e9;"><i class="fa-solid fa-comments-dollar"></i></span>
         <span class="ni-txt">2. Đàm Phán Deals</span>
         <span class="ni-bd r" style="background:#0ea5e9; font-size:9.5px; font-weight:bold;">${DEALS_DB.filter(d => d.stage !== 'closed_won' && d.stage !== 'closed_lost').length}</span>
-      </div>
+      </div>` : ''}
+      ${canSeeFinance ? `
       <div class="ni ${activePage === 'quotes' ? 'active' : ''}" data-page="quotes">
         <span class="ni-ic" style="color:#f59e0b;"><i class="fa-solid fa-file-invoice-dollar"></i></span>
         <span class="ni-txt">3. Đăng Ký Báo Giá</span>
@@ -351,18 +372,19 @@ export function buildSidebar(session, activePage, isCollapsed) {
         <span class="ni-ic" style="color:#10b981;"><i class="fa-solid fa-file-invoice"></i></span>
         <span class="ni-txt">4. Sổ Sách Hóa Đơn</span>
         <span class="ni-bd r" style="background:#10b981; font-size:9.5px; font-weight:bold;">${INVOICES_DB.filter(inv => inv.status === 'pending').length}</span>
-      </div>
+      </div>` : ''}
+      ${!isSupport ? `
       <div class="ni ${activePage === 'tasks' ? 'active' : ''}" data-page="tasks">
         <span class="ni-ic" style="color:#ec4899;"><i class="fa-solid fa-list-check"></i></span>
         <span class="ni-txt">5. Vận Hành Tác Vụ</span>
         <span class="ni-bd r" style="background:#ec4899; font-size:9.5px; font-weight:bold;">${TASKS_DB.filter(t => !t.completed).length}</span>
-      </div>
+      </div>` : ''}
       <div class="ni ${activePage === 'tickets' ? 'active' : ''}" data-page="tickets">
         <span class="ni-ic" style="color:#14b8a6;"><i class="fa-solid fa-headset"></i></span>
         <span class="ni-txt">SLA Tickets Hỗ Trợ</span>
         <span class="ni-bd r" style="background:#14b8a6; font-size:9.5px; font-weight:bold;">${TICKETS_DB.filter(t => t.status === 'open').length}</span>
       </div>
-      ${role !== 'support' ? `
+      ${!isSupport ? `
       <div class="ni ${activePage === 'kpi-calls' ? 'active' : ''}" data-page="kpi-calls">
         <span class="ni-ic" style="color:#f43f5e;"><i class="fa-solid fa-phone-volume"></i></span>
         <span class="ni-txt">KPI Cuộc Gọi</span>
@@ -491,7 +513,7 @@ export function buildSidebar(session, activePage, isCollapsed) {
       </div>
     `;
   }
-  // Support Agent Sidebar Navigation
+  // Support Agent Sidebar Navigation - SLA desk only (RBAC)
   else if (role === 'support') {
     navHtml = `
       <div class="nav-sec">
@@ -500,22 +522,9 @@ export function buildSidebar(session, activePage, isCollapsed) {
           <span class="ni-ic"><i class="fa-solid fa-headset"></i></span>
           <span class="ni-txt">Support Dashboard</span>
         </div>
-        <div class="ni ${activePage === 'mcna-funnel' ? 'active' : ''}" data-page="mcna-funnel">
-          <span class="ni-ic"><i class="fa-solid fa-diagram-project text-purple-500"></i></span>
-          <span class="ni-txt font-semibold" style="color: #6366f1;">Phễu 5 Tầng MCNA</span>
-          <span class="ni-bd r" style="background:var(--p500); font-size:9px; padding:1px 3px;">LIVE Sim</span>
-        </div>
       </div>
-      
+
       ${flowSecHtml}
-      
-      <div class="nav-sec">
-        <p class="nav-sec-label">Dữ liệu</p>
-        <div class="ni ${activePage === 'contacts' ? 'active' : ''}" data-page="contacts">
-          <span class="ni-ic"><i class="fa-solid fa-user-group"></i></span>
-          <span class="ni-txt font-semibold">Khách Hàng (B2B/B2C)</span>
-        </div>
-      </div>
     `;
   }
 
@@ -1107,29 +1116,20 @@ export function drawLeadsPage(leadsList, activeTab, filterState) {
                 const owner = USERS_DB.find(u => u.id === led.ownerId);
                 const isB2C = led.leadType === 'b2c';
 
-                // Display privacy restrictions for B2C leads - either Email or Phone, never both
+                // B2C privacy policy: both channels masked deterministically;
+                // full values are revealed only in the detail modal by the
+                // assigned rep / manager (audited).
                 let contactDisplayHtml = '';
                 if (isB2C) {
-                  const showPhone = (led.id.charCodeAt(led.id.length - 1) % 2 === 0);
-                  if (showPhone) {
-                    contactDisplayHtml = `
-                      <div style="font-family:var(--fm); line-height: 1.3;">
-                        <span class="text-emerald-700 font-bold" style="font-size:11.5px; background: rgba(16,185,129,0.1); padding:2px 5px; border-radius:4px;"><i class="fa-solid fa-phone"></i> ${led.phone}</span>
-                        <div style="font-size:9.5px; color:var(--n400); margin-top:3px;">
-                          <i class="fa-solid fa-shield-halved text-rose-500" title="Bảo mật B2C"></i> Email: <em>[🔒 Ẩn danh bảo mật]</em>
-                        </div>
+                  contactDisplayHtml = `
+                    <div style="font-family:var(--fm); line-height: 1.3;">
+                      <span class="text-emerald-700 font-bold" style="font-size:11.5px; background: rgba(16,185,129,0.1); padding:2px 5px; border-radius:4px;"><i class="fa-solid fa-phone"></i> ${maskPhone(led.phone)}</span>
+                      <div style="font-size:9.5px; color:var(--n400); margin-top:3px;">
+                        <i class="fa-solid fa-shield-halved text-rose-500" title="Bảo mật B2C"></i> Email: <em>${esc(maskEmail(led.email))}</em>
                       </div>
-                    `;
-                  } else {
-                    contactDisplayHtml = `
-                      <div style="font-family:var(--fm); line-height: 1.3;">
-                        <span class="text-indigo-700 font-bold" style="font-size:11.5px; background: rgba(99,102,241,0.1); padding:2px 5px; border-radius:4px;"><i class="fa-solid fa-envelope"></i> ${esc(led.email)}</span>
-                        <div style="font-size:9.5px; color:var(--n400); margin-top:3px;">
-                          <i class="fa-solid fa-shield-halved text-rose-500" title="Bảo mật B2C"></i> SĐT: <em>[🔒 Ẩn danh bảo mật]</em>
-                        </div>
-                      </div>
-                    `;
-                  }
+                      <div style="font-size:9px; color:var(--n400); margin-top:2px;">🔒 Giải mã trong chi tiết Lead (có ghi Audit)</div>
+                    </div>
+                  `;
                 } else {
                   contactDisplayHtml = `
                     <div style="font-family:var(--fm); line-height: 1.3; font-size:11px; color:var(--n600);">
@@ -1933,12 +1933,18 @@ export function renderTasksPage(tasksList, filterTag = 'all') {
    7b. FINANCIAL INVOICES & BALANCE DEBTS
    ========================================================================== */
 
-export function renderInvoicesPage(invoicesList) {
-  // Calculations
-  const totalInvoiced = invoicesList.reduce((sum, inv) => sum + inv.total, 0);
+export function renderInvoicesPage(invoicesList, viewerRole) {
+  // RBAC: sales reps only see contract value, due date and collection status -
+  // collected cash and outstanding debt are reserved for admin/finance views.
+  const hideFinance = viewerRole === 'sales';
+
+  // Calculations - workflow-generated invoices store the value in `amount`
+  // instead of `total`, so normalize to avoid NaN aggregates.
+  const invValue = (inv) => Number(inv.total ?? inv.amount ?? 0);
+  const totalInvoiced = invoicesList.reduce((sum, inv) => sum + invValue(inv), 0);
   const totalCollected = invoicesList.reduce((sum, inv) => {
-    if (inv.status === 'paid') return sum + inv.total;
-    if (inv.status === 'partial') return sum + inv.total * 0.5; // 50% paid
+    if (inv.status === 'paid') return sum + invValue(inv);
+    if (inv.status === 'partial') return sum + invValue(inv) * 0.5; // 50% paid
     return sum;
   }, 0);
   const totalDebt = totalInvoiced - totalCollected;
@@ -1949,10 +1955,16 @@ export function renderInvoicesPage(invoicesList) {
       <!-- Metric Cards for Accounts Receivable & Cashflow -->
       <div class="krow" style="margin-bottom: 4px;">
         <div class="kcard b">
-          <div class="kc-title">Tổng Doanh Số Đã Xuất Hóa Đơn</div>
+          <div class="kc-title">Tổng Giá Trị Hợp Đồng Đã Xuất Hóa Đơn</div>
           <div class="kc-val font-mono text-primary-600">${fmtVND(totalInvoiced)}</div>
           <div class="kc-sub"><i class="fa-solid fa-file-invoice-dollar"></i> Tổng số: ${invoicesList.length} hóa đơn</div>
         </div>
+        ${hideFinance ? `
+        <div class="kcard" style="border-left:4px solid #94a3b8;">
+          <div class="kc-title">Dòng Tiền & Công Nợ</div>
+          <div class="kc-val" style="font-size:15px; color:var(--n500);">🔒 Quyền Tài chính / Quản trị</div>
+          <div class="kc-sub">Sales chỉ xem giá trị hợp đồng, hạn thanh toán & trạng thái thu hồi</div>
+        </div>` : `
         <div class="kcard g">
           <div class="kc-title">Dòng Tiền Thực Thu (Đã Thu Hồi)</div>
           <div class="kc-val font-mono text-emerald-600">${fmtVND(totalCollected)}</div>
@@ -1962,7 +1974,7 @@ export function renderInvoicesPage(invoicesList) {
           <div class="kc-title">Tổng Công Nợ / Dư Nợ Chưa Thu</div>
           <div class="kc-val font-mono text-rose-600">${fmtVND(totalDebt)}</div>
           <div class="kc-sub"><i class="fa-solid fa-triangle-exclamation text-rose-500"></i> Yêu cầu hối thúc thanh toán</div>
-        </div>
+        </div>`}
       </div>
 
       <div class="filter-bar" style="display:flex; justify-content:space-between; align-items:center;">
@@ -1982,9 +1994,9 @@ export function renderInvoicesPage(invoicesList) {
               <tr>
                 <th>Mã Hóa Đơn</th>
                 <th>Khách hàng & Đối tác</th>
-                <th>Giá trị (VND)</th>
-                <th>Đã thu hồi (VND)</th>
-                <th>Dư nợ / Công nợ (VND)</th>
+                <th>Giá trị hợp đồng (VND)</th>
+                ${hideFinance ? '' : `<th>Đã thu hồi (VND)</th>
+                <th>Dư nợ / Công nợ (VND)</th>`}
                 <th>Hạn thanh toán</th>
                 <th>Trạng thái thu hồi</th>
                 <th style="text-align:center;">Thao tác</th>
@@ -1992,20 +2004,21 @@ export function renderInvoicesPage(invoicesList) {
             </thead>
             <tbody>
               ${invoicesList.map(inv => {
+                const invTotal = invValue(inv);
                 let stBadge = 'chip gy';
-                let outstanding = inv.total;
+                let outstanding = invTotal;
                 let paidAmt = 0;
                 if (inv.status === 'paid') {
                   stBadge = 'chip gr';
                   outstanding = 0;
-                  paidAmt = inv.total;
+                  paidAmt = invTotal;
                 } else if (inv.status === 'partial') {
                   stBadge = 'chip bl';
-                  outstanding = inv.total * 0.5;
-                  paidAmt = inv.total * 0.5;
+                  outstanding = invTotal * 0.5;
+                  paidAmt = invTotal * 0.5;
                 } else if (inv.status === 'overdue') {
                   stBadge = 'chip rd';
-                  outstanding = inv.total;
+                  outstanding = invTotal;
                   paidAmt = 0;
                 }
 
@@ -2020,13 +2033,13 @@ export function renderInvoicesPage(invoicesList) {
                     <td class="tmono cell-bold text-indigo-600">${inv.number}</td>
                     <td>
                       <div class="font-bold text-gray-800" style="font-size:12.5px;">${esc(inv.contactName)}</div>
-                      ${clientPhone ? `<div style="font-size:10.5px; color:#059669; font-weight:600; display:inline-flex; align-items:center; gap:4px; margin-top:2px; background:#ecfdf5; padding:1px 6px; border-radius:3px;"><i class="fa-solid fa-phone text-emerald-500" style="font-size:8px;"></i> SĐT: ${esc(clientPhone)}</div>` : ''}
-                      ${clientEmail ? `<div style="font-size:10px; color:#4f46e5; font-weight:500; display:flex; align-items:center; gap:4px; margin-top:1px; opacity:0.85;"><i class="fa-solid fa-envelope" style="font-size:8px;"></i> ${esc(clientEmail)}</div>` : ''}
+                      ${clientPhone ? `<div style="font-size:10.5px; color:#059669; font-weight:600; display:inline-flex; align-items:center; gap:4px; margin-top:2px; background:#ecfdf5; padding:1px 6px; border-radius:3px;"><i class="fa-solid fa-phone text-emerald-500" style="font-size:8px;"></i> SĐT: ${maskPhone(clientPhone)}</div>` : ''}
+                      ${clientEmail ? `<div style="font-size:10px; color:#4f46e5; font-weight:500; display:flex; align-items:center; gap:4px; margin-top:1px; opacity:0.85;"><i class="fa-solid fa-envelope" style="font-size:8px;"></i> ${esc(maskEmail(clientEmail))}</div>` : ''}
                       <div style="font-size:9.5px; color:var(--n400); font-family:var(--fm); margin-top:1px;">Biểu giá: ${inv.quoteId}</div>
                     </td>
-                    <td class="tmono cell-bold text-gray-700">${fmtVND(inv.total)}</td>
-                    <td class="tmono text-emerald-600">${fmtVND(paidAmt)}</td>
-                    <td class="tmono text-rose-600 cell-bold">${outstanding > 0 ? fmtVND(outstanding) : '<span class="text-emerald-600">✓ Sạch nợ</span>'}</td>
+                    <td class="tmono cell-bold text-gray-700">${fmtVND(invTotal)}</td>
+                    ${hideFinance ? '' : `<td class="tmono text-emerald-600">${fmtVND(paidAmt)}</td>
+                    <td class="tmono text-rose-600 cell-bold">${outstanding > 0 ? fmtVND(outstanding) : '<span class="text-emerald-600">✓ Sạch nợ</span>'}</td>`}
                     <td class="tmono">${inv.dueDate}</td>
                     <td>
                       <span class="${stBadge} uppercase" style="font-size:10px; font-weight:700;">
@@ -2035,9 +2048,9 @@ export function renderInvoicesPage(invoicesList) {
                     </td>
                     <td style="text-align:center;">
                       <div style="display:flex; justify-content:center; gap:8px;">
-                        ${outstanding > 0 ? `
+                        ${outstanding > 0 ? (hideFinance ? '' : `
                           <button class="btn gr sm" onclick="window.crmApp.recordInvoicePayment('${inv.id}')" title="Thu hồi công nợ trực tiếp" style="padding: 4px 8px; font-size: 11px;"><i class="fa-solid fa-cash-register"></i> Thu hồi</button>
-                        ` : `
+                        `) : `
                           <button class="btn sm" onclick="window.crmApp.go('tasks')" title="Khởi chạy Checklist bàn giao / Chăm sóc SLA" style="padding: 4px 8px; font-size: 11px; background:#f0fdf4; color:#16a34a; border:1px solid #bbf7d0; font-weight:700;"><i class="fa-solid fa-truck-ramp-box text-emerald-500"></i> Bàn giao SLA</button>
                         `}
                         <button class="btn bl sm icon-only" onclick="window.crmApp.printInvoice('${inv.id}')" title="Xem chi tiết hóa đơn/In ấn"><i class="fa-solid fa-print"></i></button>
@@ -2297,28 +2310,16 @@ export function renderCustomersPage(activeSubTab = 'b2c') {
             <tbody>
               ${CONTACTS_DB.map(con => {
                 const tagColor = con.tags === 'VIP' ? 'rd' : con.tags === 'Nợ xấu' ? 'am' : con.tags === 'Khách lẻ' ? 'pu' : 'gr';
-                const showPhone = (con.id.charCodeAt(con.id.length - 1) % 2 === 0);
-
-                let contactDisplayHtml = '';
-                if (showPhone) {
-                  contactDisplayHtml = `
-                    <div style="font-family:var(--fm); line-height: 1.3;">
-                      <span class="text-emerald-700 font-bold" style="font-size:11.5px; background: rgba(16,185,129,0.1); padding:2px 5px; border-radius:4px;"><i class="fa-solid fa-phone"></i> ${con.phone}</span>
-                      <div style="font-size:9.5px; color:var(--n400); margin-top:3px;">
-                        <i class="fa-solid fa-whiteboard text-rose-500" title="Bảo mật B2C"></i> Email: <em>[🔒 Ẩn danh bảo mật B2C]</em>
-                      </div>
+                // B2C privacy policy: deterministic masking on both channels
+                const contactDisplayHtml = `
+                  <div style="font-family:var(--fm); line-height: 1.3;">
+                    <span class="text-emerald-700 font-bold" style="font-size:11.5px; background: rgba(16,185,129,0.1); padding:2px 5px; border-radius:4px;"><i class="fa-solid fa-phone"></i> ${maskPhone(con.phone)}</span>
+                    <div style="font-size:9.5px; color:var(--n400); margin-top:3px;">
+                      <i class="fa-solid fa-shield-halved text-rose-500" title="Bảo mật B2C"></i> Email: <em>${esc(maskEmail(con.email))}</em>
                     </div>
-                  `;
-                } else {
-                  contactDisplayHtml = `
-                    <div style="font-family:var(--fm); line-height: 1.3;">
-                      <span class="text-indigo-700 font-bold" style="font-size:11.5px; background: rgba(99,102,241,0.1); padding:2px 5px; border-radius:4px;"><i class="fa-solid fa-envelope"></i> ${esc(con.email)}</span>
-                      <div style="font-size:9.5px; color:var(--n400); margin-top:3px;">
-                        <i class="fa-solid fa-whiteboard text-rose-500" title="Bảo mật B2C"></i> SĐT: <em>[🔒 Ẩn danh bảo mật B2C]</em>
-                      </div>
-                    </div>
-                  `;
-                }
+                    <div style="font-size:9px; color:var(--n400); margin-top:2px;">🔒 Giải mã trong hồ sơ chi tiết (có ghi Audit)</div>
+                  </div>
+                `;
 
                 return `
                   <tr>

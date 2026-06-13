@@ -11,13 +11,14 @@ import { bootLoadFromCloud, isCloudEnabled, syncNow } from './crm-supabase.js';
 
 import { svgBarChart, svgLineChart, svgDonut, svgFunnel, svgSparkline } from './crm-charts.js';
 
-import { 
-  drawLoginScreen, drawRegisterScreen, drawForgotScreen, 
-  buildSidebar, buildTopbar, 
+import {
+  drawLoginScreen, drawRegisterScreen, drawForgotScreen,
+  buildSidebar, buildTopbar,
   renderSuperAdminDashboard, renderManagerDashboard, renderSalesRepDashboard, renderSupportDashboard,
   drawLeadsPage, renderPipelineKanban, renderTasksPage, renderQuotationsPage, drawQuoteBuilderInner,
   renderCustomersPage, renderProductsPage, renderTicketsPage, drawTicketMessageThread, renderUsersPermissionsPage, renderSystemSettingsPage,
-  renderReportsPage, renderInvoicesPage, renderSalesToolkitPage, renderMcnaFunnelPage, renderNotificationsPage, esc, fmtVND
+  renderReportsPage, renderInvoicesPage, renderSalesToolkitPage, renderMcnaFunnelPage, renderNotificationsPage, esc, fmtVND,
+  maskPhone, maskEmail
 } from './crm-templates.js';
 
 // Collision-proof record id generator. Length-based ids (`led-${arr.length+1}`)
@@ -113,9 +114,11 @@ let EMAIL_TEMPLATES = [
 
 const PERMISSIONS = {
   superadmin: ['dashboard-superadmin', 'reports', 'leads', 'deals', 'pipeline', 'contacts', 'companies', 'products', 'quotes', 'invoices', 'tasks', 'activities', 'tickets', 'users', 'settings', 'profile', 'notifications', 'sales-toolkit', 'mcna-funnel', 'kpi-calls'],
-  manager: ['dashboard-manager', 'reports', 'leads', 'deals', 'pipeline', 'contacts', 'companies', 'quotes', 'invoices', 'tasks', 'activities', 'tickets', 'profile', 'notifications', 'sales-toolkit', 'mcna-funnel', 'kpi-calls'],
+  // Marketers create leads but must not see quotes or the invoice ledger
+  manager: ['dashboard-manager', 'reports', 'leads', 'deals', 'pipeline', 'contacts', 'companies', 'tasks', 'activities', 'tickets', 'profile', 'notifications', 'sales-toolkit', 'mcna-funnel', 'kpi-calls'],
   sales: ['dashboard-salesrep', 'leads', 'deals', 'pipeline', 'contacts', 'tasks', 'activities', 'quotes', 'products', 'invoices', 'tickets', 'profile', 'notifications', 'sales-toolkit', 'mcna-funnel', 'kpi-calls'],
-  support: ['dashboard-support', 'leads', 'deals', 'pipeline', 'contacts', 'quotes', 'invoices', 'tasks', 'activities', 'tickets', 'profile', 'notifications', 'mcna-funnel']
+  // Support is restricted to the SLA ticket desk only
+  support: ['dashboard-support', 'tickets', 'profile', 'notifications']
 };
 
 const PAGE_TITLES = {
@@ -312,9 +315,9 @@ function renderPageContent(pageId) {
     setupQuotationsEventHandlers();
   } 
   else if (pageId === 'invoices') {
-    mount.innerHTML = renderInvoicesPage(INVOICES_DB);
+    mount.innerHTML = renderInvoicesPage(INVOICES_DB, SESSION?.role);
     setupInvoicesEventHandlers();
-  } 
+  }
   else if (pageId === 'contacts') {
     mount.innerHTML = renderCustomersPage(CUSTOMER_TAB_STATE);
     setupCustomersEvents();
@@ -2427,31 +2430,34 @@ window.crmApp = {
     if (!l) return;
 
     const isB2C = l.leadType === 'b2c';
-    const showPhone = (l.id.charCodeAt(l.id.length - 1) % 2 === 0);
+    const canReveal = !!SESSION && (SESSION.role === 'superadmin' || SESSION.role === 'manager' || SESSION.id === l.ownerId);
 
     let contactFieldsHtml = '';
     if (isB2C) {
       contactFieldsHtml = `
         <div class="panel" style="background:#f5f3ff; border:1.5px dashed #8b5cf6; padding:12px; border-radius:8px; margin-bottom:12px;">
-          <h4 style="font-size:12px; color:#6d28d9; margin:0 0 6px 0;"><i class="fa-solid fa-shield-halved"></i> CHẾ ĐỘ TIẾP CẬN BẢO MẬT KHÁCH HÀNG B2C</h4>
-          <p style="font-size:11px; color:#5b21b6; margin:0 0 10px 0; line-height:1.4;">Sales phụ trách chỉ được cung cấp SĐT hoặc Email (1 kênh duy nhất) để tiếp cận trực tiếp, phòng ngừa thu thập khai thác thông tin bất chính.</p>
-          
+          <h4 style="font-size:12px; color:#6d28d9; margin:0 0 6px 0;"><i class="fa-solid fa-shield-halved"></i> CHẾ ĐỘ BẢO MẬT THÔNG TIN KHÁCH HÀNG B2C</h4>
+          <p style="font-size:11px; color:#5b21b6; margin:0 0 10px 0; line-height:1.4;">SĐT & Email được che mặc định theo chính sách bảo mật. Chỉ <strong>Sales phụ trách</strong> hoặc <strong>Quản lý/Admin</strong> được giải mã; mọi lượt giải mã đều ghi vào Audit Log.</p>
+
           <div style="display:flex; flex-direction:column; gap:8px;">
             <div class="fg" style="margin:0;">
-              <label style="color:#6d28d9; font-weight:700;">${showPhone ? 'Số điện thoại được cung cấp *' : 'Địa chỉ Email được cung cấp *'}</label>
-              <div style="position:relative; display:flex; gap:6px; align-items:center;">
-                <input type="text" class="tmono" readonly style="flex:1; background:#fff; font-weight:700; color:#4338ca; border:1px solid #c7d2fe; padding:8px; border-radius:6px;" value="${showPhone ? l.phone : l.email}" />
-                <button class="btn bl xs" onclick="window.crmApp.copyLeadContact('${showPhone ? l.phone : l.email}')" style="height:36px; padding:0 12px;"><i class="fa-solid fa-copy"></i> Sao chép</button>
+              <label style="color:#6d28d9; font-weight:700;">Số điện thoại (đã che bảo mật)</label>
+              <div style="display:flex; gap:6px; align-items:center;">
+                <input type="text" id="sec-lead-phone" class="tmono" readonly style="flex:1; background:#fff; font-weight:700; color:#4338ca; border:1px solid #c7d2fe; padding:8px; border-radius:6px;" value="${maskPhone(l.phone)}" />
+                <button class="btn bl xs" style="height:36px; padding:0 12px;" ${canReveal ? `onclick="window.crmApp.revealSecuredField('lead','${l.id}','phone')"` : 'disabled title="Chỉ Sales phụ trách hoặc Quản lý được giải mã"'}><i class="fa-solid fa-eye"></i> Giải mã</button>
               </div>
             </div>
-
-            <div class="fg" style="margin:6px 0 0 0;">
-              <label style="color:var(--n500); font-weight:600; font-size:11.5px;">Thông tin bảo mật bị ẩn bởi hệ thống</label>
-              <div style="background:var(--n100); color:var(--n500); padding:8px 12px; border-radius:6px; font-size:11px; display:flex; align-items:center; gap:8px;">
-                <i class="fa-solid fa-lock text-rose-500"></i>
-                <span>${showPhone ? 'Địa chỉ Email: ' : 'Số điện thoại: '} <strong>[ 🔒 ĐÃ ĐƯỢC CHUYỂN HOÀN ẨN DANH CHỐNG SPAM ]</strong></span>
+            <div class="fg" style="margin:0;">
+              <label style="color:#6d28d9; font-weight:700;">Địa chỉ Email (đã che bảo mật)</label>
+              <div style="display:flex; gap:6px; align-items:center;">
+                <input type="text" id="sec-lead-email" class="tmono" readonly style="flex:1; background:#fff; font-weight:700; color:#4338ca; border:1px solid #c7d2fe; padding:8px; border-radius:6px;" value="${esc(maskEmail(l.email))}" />
+                <button class="btn bl xs" style="height:36px; padding:0 12px;" ${canReveal ? `onclick="window.crmApp.revealSecuredField('lead','${l.id}','email')"` : 'disabled title="Chỉ Sales phụ trách hoặc Quản lý được giải mã"'}><i class="fa-solid fa-eye"></i> Giải mã</button>
               </div>
             </div>
+            ${canReveal ? '' : `
+            <div style="background:var(--n100); color:var(--n500); padding:8px 12px; border-radius:6px; font-size:11px;">
+              <i class="fa-solid fa-lock text-rose-500"></i> Bạn không phụ trách lead này nên không thể giải mã thông tin liên lạc của khách.
+            </div>`}
           </div>
         </div>
       `;
@@ -2661,7 +2667,9 @@ window.crmApp = {
     const con = CONTACTS_DB.find(c => c.id === id);
     if (!con) return;
 
-    const showPhone = (con.id.charCodeAt(con.id.length - 1) % 2 === 0);
+    // Privacy policy: only the owning rep / manager / admin can see or edit
+    // the customer's raw contact channels; everyone else gets masked values.
+    const canReveal = !!SESSION && (SESSION.role === 'superadmin' || SESSION.role === 'manager' || SESSION.id === con.ownerId);
 
     const modalBody = `
       <div class="auth-body">
@@ -2691,31 +2699,34 @@ window.crmApp = {
           
           <div style="display:flex; flex-direction:column; gap:8px; margin-top:10px;">
             <div class="fg" style="margin:0;">
-              <label style="color:#6d28d9; font-weight:700; font-size:11px;">${showPhone ? 'Số điện thoại hiển thị chính' : 'Địa chỉ Email hiển thị chính'}</label>
-              <div style="position:relative; display:flex; gap:6px; align-items:center;">
-                <input type="text" class="tmono" readonly style="flex:1; background:#fff; font-weight:700; color:#4338ca; border:1px solid #c7d2fe; padding:8px; border-radius:6px;" value="${showPhone ? con.phone : con.email}" />
-                <button class="btn bl xs" onclick="window.crmApp.copyLeadContact('${showPhone ? con.phone : con.email}')" style="height:36px; padding:0 12px;"><i class="fa-solid fa-copy"></i> Sao chép</button>
+              <label style="color:#6d28d9; font-weight:700; font-size:11px;">Số điện thoại (đã che bảo mật)</label>
+              <div style="display:flex; gap:6px; align-items:center;">
+                <input type="text" id="sec-contact-phone" class="tmono" readonly style="flex:1; background:#fff; font-weight:700; color:#4338ca; border:1px solid #c7d2fe; padding:8px; border-radius:6px;" value="${maskPhone(con.phone)}" />
+                <button class="btn bl xs" style="height:36px; padding:0 12px;" ${canReveal ? `onclick="window.crmApp.revealSecuredField('contact','${con.id}','phone')"` : 'disabled title="Chỉ Sales phụ trách hoặc Quản lý được giải mã"'}><i class="fa-solid fa-eye"></i> Giải mã</button>
               </div>
             </div>
-
-            <div class="fg" style="margin:4px 0 0 0;">
-              <label style="color:var(--n500); font-weight:600; font-size:11px;">Kênh thông tin được mã hóa bảo mật</label>
-              <div style="background:var(--n100); color:var(--n500); padding:8px 12px; border-radius:6px; font-size:11px; display:flex; align-items:center; gap:8px;">
-                <i class="fa-solid fa-lock text-rose-500"></i>
-                <span>${showPhone ? 'Email chi tiết: ' : 'Số điện thoại: '} <strong>[🔒 Đan xen ẩn danh bảo mật tối đa]</strong></span>
+            <div class="fg" style="margin:0;">
+              <label style="color:#6d28d9; font-weight:700; font-size:11px;">Địa chỉ Email (đã che bảo mật)</label>
+              <div style="display:flex; gap:6px; align-items:center;">
+                <input type="text" id="sec-contact-email" class="tmono" readonly style="flex:1; background:#fff; font-weight:700; color:#4338ca; border:1px solid #c7d2fe; padding:8px; border-radius:6px;" value="${esc(maskEmail(con.email))}" />
+                <button class="btn bl xs" style="height:36px; padding:0 12px;" ${canReveal ? `onclick="window.crmApp.revealSecuredField('contact','${con.id}','email')"` : 'disabled title="Chỉ Sales phụ trách hoặc Quản lý được giải mã"'}><i class="fa-solid fa-eye"></i> Giải mã</button>
               </div>
             </div>
+            ${canReveal ? '' : `
+            <div style="background:var(--n100); color:var(--n500); padding:8px 12px; border-radius:6px; font-size:11px;">
+              <i class="fa-solid fa-lock text-rose-500"></i> Bạn không phụ trách khách hàng này nên không thể giải mã hay chỉnh sửa kênh liên lạc.
+            </div>`}
           </div>
         </div>
 
         <div class="fr2">
           <div class="fg">
             <label>Số điện thoại liên hệ *</label>
-            <input type="tel" id="m-edit-con-phone" value="${esc(con.phone || '')}" />
+            <input type="tel" id="m-edit-con-phone" value="${canReveal ? esc(con.phone || '') : esc(maskPhone(con.phone))}" ${canReveal ? '' : 'readonly style="background:#f1f5f9; color:var(--n500);"'} />
           </div>
           <div class="fg">
             <label>Địa chỉ Email *</label>
-            <input type="email" id="m-edit-con-email" value="${esc(con.email || '')}" />
+            <input type="email" id="m-edit-con-email" value="${canReveal ? esc(con.email || '') : esc(maskEmail(con.email))}" ${canReveal ? '' : 'readonly style="background:#f1f5f9; color:var(--n500);"'} />
           </div>
         </div>
 
@@ -2770,8 +2781,11 @@ window.crmApp = {
       con.lastName = ln;
       con.firstName = fn;
       con.fullName = `${ln} ${fn}`;
-      con.phone = phone;
-      con.email = email;
+      if (canReveal) {
+        // masked placeholders must never overwrite the real channels
+        con.phone = phone;
+        con.email = email;
+      }
       con.source = source;
       con.tags = tags;
       con.notes = notes;
@@ -4937,6 +4951,71 @@ export function submitCallOutcome() {
   if (CUR_PAGE === 'kpi-calls') renderPageContent('kpi-calls');
 }
 
+// ---- Privacy vault: controlled reveal of masked customer channels ----
+export function revealSecuredField(kind, recId, field) {
+  const rec = kind === 'lead' ? LEADS_DB.find(x => x.id === recId) : CONTACTS_DB.find(x => x.id === recId);
+  if (!rec || !SESSION) return;
+  const allowed = SESSION.role === 'superadmin' || SESSION.role === 'manager' || SESSION.id === rec.ownerId;
+  const custName = rec.name || rec.fullName || recId;
+  if (!allowed) {
+    toast('🔒 Chỉ Sales phụ trách hoặc Quản lý mới được giải mã thông tin khách hàng!', 'error');
+    writeAuditLog(`TỪ CHỐI giải mã ${field === 'phone' ? 'SĐT' : 'Email'} của khách "${custName}" (không có quyền)`, 'Privacy Vault', 'bi_chan');
+    return;
+  }
+  const input = document.getElementById(`sec-${kind}-${field}`);
+  if (input) input.value = (field === 'phone' ? rec.phone : rec.email) || '(trống)';
+  writeAuditLog(`GIẢI MÃ ${field === 'phone' ? 'SĐT' : 'Email'} khách hàng "${custName}"`, 'Privacy Vault');
+  toast('👁 Đã giải mã. Lượt truy cập này được ghi vào Audit Log.', 'info');
+}
+
+// ---- Marketer -> Sales direct email dispatch ----
+export async function sendMarketerEmail() {
+  const repId = document.getElementById('mkt-mail-rep')?.value;
+  const subject = (document.getElementById('mkt-mail-subject')?.value || '').trim();
+  const body = (document.getElementById('mkt-mail-body')?.value || '').trim();
+  const rep = USERS_DB.find(u => u.id === repId);
+  if (!rep) { toast('Hãy chọn Sales nhận email!', 'error'); return; }
+  if (!subject || !body) { toast('Vui lòng nhập đầy đủ tiêu đề và nội dung email!', 'error'); return; }
+  const toEmail = repNotifyEmail(rep);
+  if (!toEmail) { toast(`${rep.name} chưa có email nhận thông báo - bấm ✉️ ở bảng dưới để cấu hình trước!`, 'error'); return; }
+
+  const btn = document.getElementById('mkt-mail-send-btn');
+  if (btn) { btn.disabled = true; btn.innerHTML = '<i class="fa-solid fa-spinner fa-spin"></i> Đang gửi…'; }
+
+  const mail = {
+    id: uid('mail'),
+    toEmail, toName: rep.name,
+    subject: `📣 [MCNA CRM] ${subject}`,
+    body: `Chào ${rep.name},\n\n${body}\n\n— Gửi bởi ${SESSION.name} (${SESSION.role === 'manager' ? 'Marketer' : 'Quản trị'}) qua MCNA CRM`,
+    relatedType: 'marketer_direct', relatedId: SESSION.id,
+    status: 'pending', error: '', createdAt: nowVN(), sentAt: ''
+  };
+  EMAIL_OUTBOX_DB.unshift(mail);
+  try {
+    const res = await fetch('/api/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: toEmail, toName: rep.name, subject: mail.subject, text: mail.body })
+    });
+    const out = await res.json().catch(() => ({}));
+    if (res.ok && out.sent) {
+      mail.status = 'sent'; mail.sentAt = nowVN();
+      toast(`📨 Đã gửi email tới ${rep.name} <${toEmail}>`, 'success');
+    } else if (out.reason === 'smtp_not_configured') {
+      mail.status = 'skipped'; mail.error = 'Máy chủ chưa cấu hình SMTP';
+      toast('📭 Email vào hàng đợi (chưa cấu hình SMTP).', 'warning');
+    } else {
+      mail.status = 'failed'; mail.error = out.error || `HTTP ${res.status}`;
+      toast(`⚠️ Gửi email thất bại: ${mail.error}`, 'error');
+    }
+  } catch (e) {
+    mail.status = 'failed'; mail.error = String(e?.message || e);
+    toast(`⚠️ Gửi email thất bại: ${mail.error}`, 'error');
+  }
+  writeAuditLog(`Marketer gửi email trực tiếp tới ${rep.name} <${toEmail}>: "${subject}" [${mail.status}]`, 'Email Outbox', mail.status === 'failed' ? 'bi_chan' : 'thanh_cong');
+  if (CUR_PAGE === 'kpi-calls') renderPageContent('kpi-calls');
+}
+
 // ---- 4) Per-rep parameterized settings (NO hardcoded emails) ----
 export function editRepNotifyEmail(repId) {
   const rep = USERS_DB.find(u => u.id === repId);
@@ -5024,6 +5103,31 @@ function renderKpiCallsPage() {
   // Management block
   if (isMgmt) {
     const reps = USERS_DB.filter(u => u.role === 'sales');
+
+    // Marketer -> Sales direct email composer (addresses come from rep profiles)
+    html += `
+      <div class="panel" style="padding:18px; margin-bottom:14px; border-left:4px solid #7c3aed;">
+        <h3 style="font-family:var(--fd); font-weight:800; margin:0 0 4px 0;">📨 Bắn Email từ Marketers → Sales</h3>
+        <p style="font-size:12px; color:var(--n500); margin:0 0 12px 0;">Email người nhận lấy từ <strong>hồ sơ nhân sự</strong> (tham số hóa, không hardcode). Mọi email được lưu vào Outbox bên dưới.</p>
+        <div style="display:grid; grid-template-columns: 1fr 1.6fr; gap:10px; margin-bottom:10px;">
+          <div class="fg" style="margin:0;">
+            <label>Sales nhận email *</label>
+            <select id="mkt-mail-rep">
+              ${reps.filter(r => r.status === 'active').map(r => `<option value="${r.id}">${esc(r.name)} — ${esc(repNotifyEmail(r) || 'chưa có email')}</option>`).join('')}
+            </select>
+          </div>
+          <div class="fg" style="margin:0;">
+            <label>Tiêu đề *</label>
+            <input type="text" id="mkt-mail-subject" placeholder="VD: Ưu tiên xử lý nhóm lead Facebook Ads hôm nay" />
+          </div>
+        </div>
+        <div class="fg" style="margin:0 0 10px 0;">
+          <label>Nội dung *</label>
+          <textarea id="mkt-mail-body" rows="3" placeholder="Nội dung điều phối, hướng dẫn chiến dịch, danh sách lead cần ưu tiên..."></textarea>
+        </div>
+        <button class="btn pr" id="mkt-mail-send-btn" onclick="window.crmApp.sendMarketerEmail()"><i class="fa-solid fa-paper-plane"></i> Gửi email cho Sales</button>
+      </div>`;
+
     html += `
       <div class="panel" style="padding:18px; margin-bottom:14px;">
         <h3 style="font-family:var(--fd); font-weight:800; margin:0 0 4px 0;">🛡️ Giám sát KPI cuộc gọi đội Sales - ${todayKey()}</h3>
@@ -5116,7 +5220,8 @@ export function launchCallFromPicker() {
 // Expose pipeline & KPI methods for inline handlers
 Object.assign(window.crmApp || (window.crmApp = {}), {
   openCallSession, beginDial, onReachChange, cancelCallSession, submitCallOutcome,
-  editRepNotifyEmail, editRepKpiTarget, launchCallFromPicker
+  editRepNotifyEmail, editRepKpiTarget, launchCallFromPicker,
+  revealSecuredField, sendMarketerEmail
 });
 
 async function init() {
