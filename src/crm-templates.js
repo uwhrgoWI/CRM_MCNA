@@ -86,16 +86,6 @@ export function drawLoginScreen() {
         <div style="text-align:center; font-size:12px; font-weight:600; color:var(--n500);">
           Chưa có tài khoản doanh nghiệp? <a href="#" id="go-register-btn">Đăng ký phễu mới</a>
         </div>
-
-        <div class="demo-btns">
-          <p class="switcher-title" style="margin-bottom:6px;"><i class="fa-solid fa-bolt text-amber-500"></i> Đăng nhập nhanh vai trò Demo:</p>
-          <div class="demo-btns-grid">
-            <button class="demo-btn" data-email="superadmin@crm.vn" data-pw="Admin@123" style="border-left: 3px solid var(--red); color:var(--red);">👑 Admin</button>
-            <button class="demo-btn" data-email="manager@crm.vn" data-pw="Manager@123" style="border-left: 3px solid var(--p600); color:var(--p600);">📊 Marketers</button>
-            <button class="demo-btn" data-email="sales@crm.vn" data-pw="Sales@123" style="border-left: 3px solid var(--b600); color:var(--b600);">💼 Sales Rep</button>
-            <button class="demo-btn" data-email="support@crm.vn" data-pw="Support@123" style="border-left: 3px solid var(--teal); color:var(--teal);">🎧 Support</button>
-          </div>
-        </div>
       </div>
     </div>
   `;
@@ -2540,8 +2530,12 @@ export function drawTicketMessageThread(ticket) {
 export function renderUsersPermissionsPage() {
   return `
     <div class="page-container animate-fadeIn">
-      <div class="tabbar">
-        <div class="tab active">Tài Khoản Nhân Sự (${USERS_DB.length})</div>
+      <div class="filter-bar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
+        <div>
+          <h3 style="font-family:var(--fd); font-size:15px; font-weight:800; margin:0;"><i class="fa-solid fa-id-badge text-rose-500"></i> Quản Trị Tài Khoản Nhân Sự (${USERS_DB.length})</h3>
+          <p style="font-size:11.5px; color:var(--n500); margin-top:2px;">Admin tạo tài khoản cho Sales / Marketers; tài khoản Sales được gửi email kèm thông tin đăng nhập.</p>
+        </div>
+        <button class="btn pr" id="users-create-btn" onclick="window.crmApp.openCreateUserModal()"><i class="fa-solid fa-user-plus"></i> Tạo Tài Khoản Mới</button>
       </div>
 
       <div class="panel" style="padding:0; overflow-x:auto;">

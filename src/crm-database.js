@@ -24,7 +24,7 @@ function genPhone() {
 export const USERS_DB = [
   {
     id: "usr-admin",
-    email: "superadmin@crm.vn",
+    email: "cskh.mcna.247@gmail.com",
     pw: "Admin@123",
     name: "Cao Khải Hoàn",
     role: "superadmin",

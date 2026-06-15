@@ -451,15 +451,6 @@ function setupLoginEventHandlers() {
     CUR_PAGE = 'forgot';
     renderEntryScreen();
   });
-
-  // Support click demo profiles fast login select
-  document.querySelectorAll('.demo-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      document.getElementById('login-email').value = btn.getAttribute('data-email');
-      document.getElementById('login-pw').value = btn.getAttribute('data-pw');
-      toast('Đã nạp mẫu đăng nhập nhanh, nhấn nút đăng nhập!', 'info');
-    });
-  });
 }
 
 function setupRegisterEventHandlers(step) {
@@ -5024,6 +5015,140 @@ export async function sendMarketerEmail() {
   if (CUR_PAGE === 'kpi-calls') renderPageContent('kpi-calls');
 }
 
+// ---- Admin: create staff accounts (Sales / Marketers) + welcome email ----
+const ACCOUNT_COLORS = ['#2563eb', '#7c3aed', '#0ea5e9', '#10b981', '#f59e0b', '#ef4444', '#14b8a6', '#a855f7'];
+
+export function openCreateUserModal() {
+  if (!SESSION || SESSION.role !== 'superadmin') {
+    toast('🔒 Chỉ Admin mới được tạo tài khoản nhân sự!', 'error');
+    return;
+  }
+  const bodyHtml = `
+    <div class="auth-body">
+      <div class="fr2">
+        <div class="fg"><label>Họ và tên *</label><input type="text" id="cu-name" placeholder="Nguyễn Văn An" /></div>
+        <div class="fg">
+          <label>Vai trò *</label>
+          <select id="cu-role">
+            <option value="sales">💼 Sales Rep</option>
+            <option value="manager">📊 Marketers</option>
+          </select>
+        </div>
+      </div>
+      <div class="fr2">
+        <div class="fg"><label>Email đăng nhập *</label><input type="email" id="cu-email" placeholder="ten.nhanvien@mcna.vn" /></div>
+        <div class="fg"><label>Số điện thoại</label><input type="tel" id="cu-phone" placeholder="0901234567" /></div>
+      </div>
+      <div class="fr2">
+        <div class="fg"><label>Phòng ban / Bộ phận</label><input type="text" id="cu-dept" placeholder="Kinh doanh miền Bắc" /></div>
+        <div class="fg"><label>Mật khẩu khởi tạo *</label>
+          <div style="display:flex; gap:6px;">
+            <input type="text" id="cu-pw" class="tmono" value="Mcna@${Math.floor(1000 + Math.random() * 9000)}" />
+            <button class="btn bl xs" type="button" onclick="document.getElementById('cu-pw').value='Mcna@'+Math.floor(1000+Math.random()*9000)" style="height:38px;"><i class="fa-solid fa-rotate"></i></button>
+          </div>
+        </div>
+      </div>
+      <div class="fg" id="cu-kpi-wrap">
+        <label>Chỉ tiêu cuộc gọi/ngày (Sales)</label>
+        <input type="number" id="cu-kpi" value="100" />
+      </div>
+      <div class="panel" style="background:#eff6ff; border:1px solid #bfdbfe; padding:10px; border-radius:8px;">
+        <p style="font-size:11.5px; color:#1d4ed8; margin:0;"><i class="fa-solid fa-paper-plane"></i> Tài khoản Sales sẽ nhận <strong>email kèm thông tin đăng nhập</strong> ngay sau khi tạo (gửi tới đúng email đăng nhập ở trên).</p>
+      </div>
+    </div>
+  `;
+  const footerHtml = `
+    <button class="btn bl" onclick="window.crmApp.closeActiveModal()">Thoát</button>
+    <button class="btn pr" id="cu-save-btn" onclick="window.crmApp.submitCreateUser()"><i class="fa-solid fa-user-check"></i> Tạo & Gửi tài khoản</button>
+  `;
+  openModalElement('TẠO TÀI KHOẢN NHÂN SỰ MỚI', bodyHtml, footerHtml);
+
+  const roleSel = document.getElementById('cu-role');
+  const kpiWrap = document.getElementById('cu-kpi-wrap');
+  const syncKpi = () => { kpiWrap.style.display = roleSel.value === 'sales' ? 'block' : 'none'; };
+  roleSel.addEventListener('change', syncKpi);
+  syncKpi();
+}
+
+export async function submitCreateUser() {
+  if (!SESSION || SESSION.role !== 'superadmin') return;
+  const name = (document.getElementById('cu-name').value || '').trim();
+  const role = document.getElementById('cu-role').value;
+  const email = (document.getElementById('cu-email').value || '').trim();
+  const phone = (document.getElementById('cu-phone').value || '').trim();
+  const dept = (document.getElementById('cu-dept').value || '').trim();
+  const pw = (document.getElementById('cu-pw').value || '').trim();
+  const kpi = parseInt(document.getElementById('cu-kpi')?.value, 10) || 100;
+
+  if (name.trim().split(/\s+/).length < 2) { toast('Vui lòng nhập đầy đủ HỌ VÀ TÊN!', 'error'); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast('Email đăng nhập không hợp lệ!', 'error'); return; }
+  if (!pw) { toast('Vui lòng nhập mật khẩu khởi tạo!', 'error'); return; }
+  if (USERS_DB.some(u => u.email.toLowerCase() === email.toLowerCase())) {
+    toast(`Email "${email}" đã tồn tại trên hệ thống!`, 'error');
+    return;
+  }
+
+  const words = name.split(/\s+/);
+  const initials = ((words[0][0] || '') + (words[words.length - 1][0] || '')).toUpperCase();
+  const newUser = {
+    id: uid('usr'),
+    email,
+    pw,
+    name,
+    role,
+    dept: dept || (role === 'sales' ? 'Kinh doanh' : 'Marketing'),
+    phone,
+    initials,
+    color: ACCOUNT_COLORS[USERS_DB.length % ACCOUNT_COLORS.length],
+    status: 'active',
+    joinedAt: new Date().toLocaleDateString('vi-VN'),
+    lastLogin: '-',
+    target: role === 'sales' ? 800000000 : 1500000000,
+    dealsWon: 0,
+    revenue: 0,
+    notifyEmail: email,
+    kpiDailyCalls: role === 'sales' ? kpi : undefined
+  };
+  USERS_DB.unshift(newUser);
+  writeAuditLog(`Admin tạo tài khoản ${role === 'sales' ? 'Sales' : 'Marketers'}: ${name} <${email}>`, 'Users');
+
+  closeActiveModal();
+  toast(`✅ Đã tạo tài khoản ${role === 'sales' ? 'Sales' : 'Marketers'} cho ${name}. Đang gửi email đăng nhập…`, 'success');
+  if (CUR_PAGE === 'users') renderPageContent('users');
+
+  // Welcome email with login credentials (sent to the new account's email)
+  const mail = {
+    id: uid('mail'),
+    toEmail: email, toName: name,
+    subject: `🎉 [MCNA CRM] Tài khoản ${role === 'sales' ? 'Sales' : 'Marketers'} của bạn đã được tạo`,
+    body: `Chào ${name},\n\nAdmin ${SESSION.name} vừa khởi tạo tài khoản ${role === 'sales' ? 'Sales Rep' : 'Marketers'} cho bạn trên hệ thống MCNA CRM.\n\nThông tin đăng nhập:\n• Email: ${email}\n• Mật khẩu: ${pw}\n• Vai trò: ${role === 'sales' ? 'Sales Rep' : 'Marketers'}\n${role === 'sales' ? `• Chỉ tiêu cuộc gọi/ngày: ${kpi}\n` : ''}\nĐăng nhập tại: ${typeof location !== 'undefined' ? location.origin : ''}\nVui lòng đổi mật khẩu sau lần đăng nhập đầu tiên.\n\n— MCNA CRM (email tự động, không trả lời thư này)`,
+    relatedType: 'account_created', relatedId: newUser.id,
+    status: 'pending', error: '', createdAt: nowVN(), sentAt: ''
+  };
+  EMAIL_OUTBOX_DB.unshift(mail);
+  try {
+    const res = await fetch('/api/notify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: email, toName: name, subject: mail.subject, text: mail.body })
+    });
+    const out = await res.json().catch(() => ({}));
+    if (res.ok && out.sent) {
+      mail.status = 'sent'; mail.sentAt = nowVN();
+      toast(`📨 Đã gửi email đăng nhập tới ${name} <${email}>`, 'success');
+    } else if (out.reason === 'smtp_not_configured') {
+      mail.status = 'skipped'; mail.error = 'Máy chủ chưa cấu hình SMTP';
+      toast('📭 Email đăng nhập vào hàng đợi (chưa cấu hình SMTP).', 'warning');
+    } else {
+      mail.status = 'failed'; mail.error = out.error || `HTTP ${res.status}`;
+      toast(`⚠️ Gửi email đăng nhập thất bại: ${mail.error}`, 'error');
+    }
+  } catch (e) {
+    mail.status = 'failed'; mail.error = String(e?.message || e);
+  }
+  writeAuditLog(`Email cấp tài khoản tới ${name} <${email}> [${mail.status}]`, 'Email Outbox', mail.status === 'failed' ? 'bi_chan' : 'thanh_cong');
+}
+
 // ---- Sales Manager: filter & distribute unassigned ("to be updated") leads ----
 export function openAssignLeadModal(leadId) {
   if (!SESSION || !(SESSION.role === 'manager' || SESSION.role === 'superadmin')) {
@@ -5294,7 +5419,8 @@ export function launchCallFromPicker() {
 Object.assign(window.crmApp || (window.crmApp = {}), {
   openCallSession, beginDial, onReachChange, cancelCallSession, submitCallOutcome,
   editRepNotifyEmail, editRepKpiTarget, launchCallFromPicker,
-  revealSecuredField, sendMarketerEmail, openAssignLeadModal, confirmAssignLead
+  revealSecuredField, sendMarketerEmail, openAssignLeadModal, confirmAssignLead,
+  openCreateUserModal, submitCreateUser
 });
 
 async function init() {
