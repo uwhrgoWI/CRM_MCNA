@@ -2547,7 +2547,7 @@ export function renderUsersPermissionsPage() {
               <th>Phòng ban bộ môn</th>
               <th>Vai trò phục vụ trên hệ thống</th>
               <th>Trạng thái tài khoản</th>
-              <th style="text-align:center;">Kích hoạt / Hủy quyền</th>
+              <th style="text-align:center; min-width:240px;">Quản trị tài khoản (Supabase)</th>
             </tr>
           </thead>
           <tbody>
@@ -2568,10 +2568,13 @@ export function renderUsersPermissionsPage() {
                     <span class="chip ${usr.status==='active'?'gr':'gy'}">${usr.status==='active'?'ĐANG HOẠT ĐỘNG':'ĐÃ KHÓA'}</span>
                   </td>
                   <td style="text-align:center;">
-                    <div style="display:flex; justify-content:center; gap:6px;">
-                      <button class="btn ${usr.status==='active'?'rd':'gr'} sm" onclick="window.crmApp.toggleUserStatus('${usr.id}')">
-                        ${usr.status==='active' ? '<i class="fa-solid fa-lock"></i> Khóa account' : '<i class="fa-solid fa-lock-open"></i> Kích hoạt'}
+                    <div style="display:flex; justify-content:center; gap:5px; flex-wrap:wrap;">
+                      <button class="btn bl sm" title="Sửa hồ sơ tài khoản" onclick="window.crmApp.openUserEditModal('${usr.id}')" style="padding:4px 8px;"><i class="fa-solid fa-pen"></i> Sửa</button>
+                      <button class="btn am sm" title="Đặt lại mật khẩu & gửi email" onclick="window.crmApp.resetUserPassword('${usr.id}')" style="padding:4px 8px;"><i class="fa-solid fa-key"></i> MK</button>
+                      <button class="btn ${usr.status==='active'?'gy':'gr'} sm" title="${usr.status==='active'?'Khóa':'Kích hoạt'} tài khoản" onclick="window.crmApp.toggleUserStatus('${usr.id}')" style="padding:4px 8px;">
+                        ${usr.status==='active' ? '<i class="fa-solid fa-lock"></i>' : '<i class="fa-solid fa-lock-open"></i>'}
                       </button>
+                      <button class="btn rd sm" title="Xóa tài khoản khỏi Supabase" onclick="window.crmApp.deleteStaffUser('${usr.id}')" style="padding:4px 8px;"><i class="fa-solid fa-trash-can"></i></button>
                     </div>
                   </td>
                 </tr>

@@ -2315,12 +2315,144 @@ export function moveDealNextStage(dealId) {
 }
 
 export function toggleUserStatus(usrId) {
+  if (!SESSION || SESSION.role !== 'superadmin') { toast('🔒 Chỉ Admin mới được quản lý tài khoản nhân sự!', 'error'); return; }
   const usr = USERS_DB.find(u => u.id === usrId);
   if (usr) {
-    usr.status = usr.status === 'active' ? 'lock' : 'active';
-    toast(`Đã thay đổi trạng thái tác nghiệp của tài khoản ${usr.name}!`, 'success');
+    usr.status = usr.status === 'active' ? 'inactive' : 'active';
+    writeAuditLog(`${usr.status === 'active' ? 'Kích hoạt' : 'Khóa'} tài khoản ${usr.name} <${usr.email}>`, 'Users');
+    toast(`Đã ${usr.status === 'active' ? 'kích hoạt' : 'khóa'} tài khoản ${usr.name}! Đồng bộ Supabase tự động.`, 'success');
     renderPageContent('users');
   }
+}
+
+// ---- Admin: full staff account management (syncs to Supabase) ----
+export function openUserEditModal(usrId) {
+  if (!SESSION || SESSION.role !== 'superadmin') { toast('🔒 Chỉ Admin mới được sửa tài khoản nhân sự!', 'error'); return; }
+  const u = USERS_DB.find(x => x.id === usrId);
+  if (!u) return;
+  const bodyHtml = `
+    <div class="auth-body">
+      <div class="fr2">
+        <div class="fg"><label>Họ và tên *</label><input type="text" id="ue-name" value="${esc(u.name)}" /></div>
+        <div class="fg">
+          <label>Vai trò *</label>
+          <select id="ue-role" ${u.id === SESSION.id ? 'disabled title="Không thể tự đổi vai trò của chính mình"' : ''}>
+            <option value="sales" ${u.role === 'sales' ? 'selected' : ''}>💼 Sales Rep</option>
+            <option value="manager" ${u.role === 'manager' ? 'selected' : ''}>📊 Marketers</option>
+            <option value="support" ${u.role === 'support' ? 'selected' : ''}>🎧 Support</option>
+            <option value="superadmin" ${u.role === 'superadmin' ? 'selected' : ''}>👑 Admin</option>
+          </select>
+        </div>
+      </div>
+      <div class="fr2">
+        <div class="fg"><label>Email đăng nhập *</label><input type="email" id="ue-email" value="${esc(u.email)}" /></div>
+        <div class="fg"><label>Số điện thoại</label><input type="tel" id="ue-phone" value="${esc(u.phone || '')}" /></div>
+      </div>
+      <div class="fr2">
+        <div class="fg"><label>Phòng ban / Bộ phận</label><input type="text" id="ue-dept" value="${esc(u.dept || '')}" /></div>
+        <div class="fg"><label>Email nhận thông báo (giao việc)</label><input type="email" id="ue-notify" value="${esc(u.notifyEmail || u.email || '')}" /></div>
+      </div>
+      <div class="fg" id="ue-kpi-wrap" style="${u.role === 'sales' ? '' : 'display:none;'}">
+        <label>Chỉ tiêu cuộc gọi/ngày (Sales)</label>
+        <input type="number" id="ue-kpi" value="${Number(u.kpiDailyCalls) || 100}" />
+      </div>
+    </div>
+  `;
+  const footerHtml = `
+    <button class="btn bl" onclick="window.crmApp.closeActiveModal()">Thoát</button>
+    <button class="btn pr" onclick="window.crmApp.submitUserEdit('${u.id}')"><i class="fa-solid fa-floppy-disk"></i> Lưu thay đổi</button>
+  `;
+  openModalElement(`SỬA TÀI KHOẢN: ${u.name}`, bodyHtml, footerHtml);
+  const roleSel = document.getElementById('ue-role');
+  roleSel?.addEventListener('change', () => {
+    document.getElementById('ue-kpi-wrap').style.display = roleSel.value === 'sales' ? 'block' : 'none';
+  });
+}
+
+export function submitUserEdit(usrId) {
+  if (!SESSION || SESSION.role !== 'superadmin') return;
+  const u = USERS_DB.find(x => x.id === usrId);
+  if (!u) return;
+  const name = (document.getElementById('ue-name').value || '').trim();
+  const role = document.getElementById('ue-role').value;
+  const email = (document.getElementById('ue-email').value || '').trim();
+  const phone = (document.getElementById('ue-phone').value || '').trim();
+  const dept = (document.getElementById('ue-dept').value || '').trim();
+  const notify = (document.getElementById('ue-notify').value || '').trim();
+  const kpi = parseInt(document.getElementById('ue-kpi')?.value, 10) || 100;
+
+  if (name.split(/\s+/).length < 2) { toast('Vui lòng nhập đầy đủ HỌ VÀ TÊN!', 'error'); return; }
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast('Email đăng nhập không hợp lệ!', 'error'); return; }
+  if (notify && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(notify)) { toast('Email nhận thông báo không hợp lệ!', 'error'); return; }
+  if (USERS_DB.some(x => x.id !== usrId && x.email.toLowerCase() === email.toLowerCase())) {
+    toast(`Email "${email}" đã thuộc về tài khoản khác!`, 'error'); return;
+  }
+
+  const words = name.split(/\s+/);
+  u.name = name;
+  u.initials = ((words[0][0] || '') + (words[words.length - 1][0] || '')).toUpperCase();
+  if (u.id !== SESSION.id) u.role = role; // can't change own role
+  u.email = email;
+  u.phone = phone;
+  u.dept = dept;
+  u.notifyEmail = notify;
+  u.kpiDailyCalls = (u.role === 'sales') ? kpi : undefined;
+  if (SESSION.id === u.id) SESSION = u; // keep current session in sync
+
+  writeAuditLog(`Sửa hồ sơ tài khoản ${u.name} <${u.email}> (vai trò: ${u.role})`, 'Users');
+  toast(`✅ Đã cập nhật tài khoản ${u.name}. Thay đổi tự đồng bộ lên Supabase.`, 'success');
+  closeActiveModal();
+  if (CUR_PAGE === 'users') renderPageContent('users');
+}
+
+export async function resetUserPassword(usrId) {
+  if (!SESSION || SESSION.role !== 'superadmin') { toast('🔒 Chỉ Admin mới được đặt lại mật khẩu!', 'error'); return; }
+  const u = USERS_DB.find(x => x.id === usrId);
+  if (!u) return;
+  const suggested = 'Mcna@' + Math.floor(1000 + Math.random() * 9000);
+  const np = prompt(`Đặt mật khẩu mới cho ${u.name} (${u.email}):`, suggested);
+  if (np === null) return;
+  if (!np.trim() || np.trim().length < 6) { toast('Mật khẩu phải từ 6 ký tự trở lên!', 'error'); return; }
+  u.pw = np.trim();
+  writeAuditLog(`Đặt lại mật khẩu cho tài khoản ${u.name} <${u.email}>`, 'Users');
+  toast(`🔑 Đã đặt lại mật khẩu cho ${u.name}. Đang gửi email thông báo…`, 'success');
+
+  const toEmail = u.notifyEmail || u.email;
+  const mail = {
+    id: uid('mail'), toEmail, toName: u.name,
+    subject: `🔑 [MCNA CRM] Mật khẩu tài khoản của bạn đã được đặt lại`,
+    body: `Chào ${u.name},\n\nAdmin ${SESSION.name} vừa đặt lại mật khẩu cho tài khoản MCNA CRM của bạn.\n\n• Email đăng nhập: ${u.email}\n• Mật khẩu mới: ${u.pw}\n\nĐăng nhập tại: ${typeof location !== 'undefined' ? location.origin : ''}\nVui lòng đổi mật khẩu sau khi đăng nhập.\n\n— MCNA CRM (email tự động)`,
+    relatedType: 'password_reset', relatedId: u.id,
+    status: 'pending', error: '', createdAt: nowVN(), sentAt: ''
+  };
+  EMAIL_OUTBOX_DB.unshift(mail);
+  try {
+    const res = await fetch('/api/notify', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ to: toEmail, toName: u.name, subject: mail.subject, text: mail.body })
+    });
+    const out = await res.json().catch(() => ({}));
+    if (res.ok && out.sent) { mail.status = 'sent'; mail.sentAt = nowVN(); toast(`📨 Đã gửi mật khẩu mới tới ${toEmail}`, 'success'); }
+    else if (out.reason === 'smtp_not_configured') { mail.status = 'skipped'; mail.error = 'SMTP chưa cấu hình'; }
+    else { mail.status = 'failed'; mail.error = out.error || `HTTP ${res.status}`; }
+  } catch (e) { mail.status = 'failed'; mail.error = String(e?.message || e); }
+  if (CUR_PAGE === 'users') renderPageContent('users');
+}
+
+export function deleteStaffUser(usrId) {
+  if (!SESSION || SESSION.role !== 'superadmin') { toast('🔒 Chỉ Admin mới được xóa tài khoản!', 'error'); return; }
+  const u = USERS_DB.find(x => x.id === usrId);
+  if (!u) return;
+  if (u.id === SESSION.id) { toast('Không thể xóa chính tài khoản đang đăng nhập!', 'error'); return; }
+  if (u.role === 'superadmin' && USERS_DB.filter(x => x.role === 'superadmin').length <= 1) {
+    toast('Không thể xóa Admin cuối cùng của hệ thống!', 'error'); return;
+  }
+  if (!confirm(`Xóa vĩnh viễn tài khoản "${u.name}" (${u.email})? Hành động này sẽ xóa luôn trên Supabase.`)) return;
+  const idx = USERS_DB.findIndex(x => x.id === usrId);
+  USERS_DB.splice(idx, 1);
+  writeAuditLog(`Xóa tài khoản nhân sự ${u.name} <${u.email}>`, 'Users');
+  toast(`🗑️ Đã xóa tài khoản ${u.name}. Bản ghi trên Supabase sẽ bị xóa theo.`, 'success');
+  if (CUR_PAGE === 'users') renderPageContent('users');
 }
 
 /* ==========================================================================
@@ -5420,7 +5552,8 @@ Object.assign(window.crmApp || (window.crmApp = {}), {
   openCallSession, beginDial, onReachChange, cancelCallSession, submitCallOutcome,
   editRepNotifyEmail, editRepKpiTarget, launchCallFromPicker,
   revealSecuredField, sendMarketerEmail, openAssignLeadModal, confirmAssignLead,
-  openCreateUserModal, submitCreateUser
+  openCreateUserModal, submitCreateUser,
+  openUserEditModal, submitUserEdit, resetUserPassword, deleteStaffUser
 });
 
 async function init() {
