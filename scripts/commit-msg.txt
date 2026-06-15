@@ -1,0 +1,14 @@
+Add "to be updated" lead workflow: marketer aggregates, sales manager distributes
+
+- New leads can be created without a rep; marketers default to unassigned.
+  Unassigned leads get status to_be_updated and skip the assignment email.
+- Leads table shows a "To be updated" tab, an amber owner badge, and a
+  "Chia" (distribute) button visible only to manager/superadmin.
+- openAssignLeadModal/confirmAssignLead let the sales manager pick a rep;
+  on assign the lead owner + mirrored contact owner are set, status to new,
+  and the rep gets a notification + email (address from their profile).
+
+Privacy (phone/email) confirmed already free of random hiding.
+Verified on production: e2e-tbu.mjs all pass + e2e-rbac.mjs 11/11 (no regression).
+
+Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>

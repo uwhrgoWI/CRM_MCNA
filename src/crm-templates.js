@@ -1035,9 +1035,12 @@ export function renderSupportDashboard() {
    4. CORE SALES LEADS VIEW PAGE MODULES
    ========================================================================== */
 
-export function drawLeadsPage(leadsList, activeTab, filterState) {
+export function drawLeadsPage(leadsList, activeTab, filterState, viewerRole) {
   // First, apply activeTab filter
   const stateFilteredList = activeTab === 'all' ? leadsList : leadsList.filter(l => l.status === activeTab);
+  // Only the Sales Manager / admin can filter & distribute unassigned leads
+  const canDistribute = viewerRole === 'manager' || viewerRole === 'superadmin';
+  const tbuCount = leadsList.filter(l => l.status === 'to_be_updated' || !l.ownerId).length;
 
   return `
     <div class="page-container animate-fadeIn">
@@ -1079,11 +1082,12 @@ export function drawLeadsPage(leadsList, activeTab, filterState) {
 
       <!-- Tabbing filters -->
       <div class="tabbar">
-        <div class="tab ${activeTab==='all'?'active':''}" data-tab="all">Tất cả trạng thái (${stateFilteredList.length})</div>
-        <div class="tab ${activeTab==='new'?'active':''}" data-tab="new">Mới (${stateFilteredList.filter(l=>l.status==='new').length})</div>
-        <div class="tab ${activeTab==='contacting'?'active':''}" data-tab="contacting">Đang xử lý (${stateFilteredList.filter(l=>l.status==='contacting').length})</div>
-        <div class="tab ${activeTab==='qualified'?'active':''}" data-tab="qualified">Đã Qualify (${stateFilteredList.filter(l=>l.status==='qualified').length})</div>
-        <div class="tab ${activeTab==='lost'?'active':''}" data-tab="lost">Mất Lead (${stateFilteredList.filter(l=>l.status==='lost').length})</div>
+        <div class="tab ${activeTab==='all'?'active':''}" data-tab="all">Tất cả trạng thái (${leadsList.length})</div>
+        <div class="tab ${activeTab==='to_be_updated'?'active':''}" data-tab="to_be_updated" style="${tbuCount>0?'color:#b45309;font-weight:800;':''}">⏳ To be updated (${tbuCount})</div>
+        <div class="tab ${activeTab==='new'?'active':''}" data-tab="new">Mới (${leadsList.filter(l=>l.status==='new').length})</div>
+        <div class="tab ${activeTab==='contacting'?'active':''}" data-tab="contacting">Đang xử lý (${leadsList.filter(l=>l.status==='contacting').length})</div>
+        <div class="tab ${activeTab==='qualified'?'active':''}" data-tab="qualified">Đã Qualify (${leadsList.filter(l=>l.status==='qualified').length})</div>
+        <div class="tab ${activeTab==='lost'?'active':''}" data-tab="lost">Mất Lead (${leadsList.filter(l=>l.status==='lost').length})</div>
       </div>
 
       <!-- Leads dynamic table -->
@@ -1189,13 +1193,16 @@ export function drawLeadsPage(leadsList, activeTab, filterState) {
                     <td><span class="${priorityBadge}">${led.priority?.toUpperCase()}</span></td>
                     <td style="text-align:right;" class="tmono cell-bold text-primary-600">${fmtVND(led.value)}</td>
                     <td>
+                      ${owner ? `
                       <div style="display:flex; align-items:center; gap:6px;">
-                        <div class="av xs" style="background:${owner?.color || 'var(--grad)'}">${owner?.initials || 'S'}</div>
-                        <span style="font-size:11.5px; font-weight:600;">${owner ? esc(owner.name) : 'Chưa giao'}</span>
-                      </div>
+                        <div class="av xs" style="background:${owner.color || 'var(--grad)'}">${owner.initials || 'S'}</div>
+                        <span style="font-size:11.5px; font-weight:600;">${esc(owner.name)}</span>
+                      </div>` : `
+                      <span class="chip am font-bold" style="font-size:10px; padding:3px 8px;"><i class="fa-solid fa-hourglass-half"></i> To be updated</span>`}
                     </td>
                     <td style="text-align:center;">
                       <div style="display:flex; justify-content:center; gap:4px;">
+                        ${!led.ownerId && canDistribute ? `<button class="btn am xs" onclick="window.crmApp.openAssignLeadModal('${led.id}')" title="Lọc & chia Lead cho Sales" style="padding:4px 6px; font-size:10.5px; font-weight:700;"><i class="fa-solid fa-share-from-square"></i> Chia</button>` : ''}
                         <button class="btn gr xs" onclick="window.crmApp.convertLeadToDeal('${led.id}')" title="Chuyển đổi thành Deal thương thảo" style="padding:4px 6px; font-size:10.5px;"><i class="fa-solid fa-shuffle"></i> Convert</button>
                         <button class="btn bl icon-only xs" onclick="window.crmApp.openLeadDetail('${led.id}')" title="Chi tiết & Tiếp cận bảo mật" style="padding:4px 6px;"><i class="fa-solid fa-eye"></i></button>
                         <button class="btn rd icon-only xs" onclick="window.crmApp.deleteLead('${led.id}')" title="Xóa bỏ" style="padding:4px 6px;"><i class="fa-solid fa-trash-can"></i></button>

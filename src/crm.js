@@ -296,7 +296,7 @@ function renderPageContent(pageId) {
       data = data.filter(l => l.name.toLowerCase().includes(q) || l.company.toLowerCase().includes(q));
     }
     
-    mount.innerHTML = drawLeadsPage(data, ACTIVE_TAB_STATE, FILTER_STATE);
+    mount.innerHTML = drawLeadsPage(data, ACTIVE_TAB_STATE, FILTER_STATE, SESSION?.role);
     setupLeadsEventHandlers();
   } 
   else if (pageId === 'deals' || pageId === 'pipeline') {
@@ -781,10 +781,11 @@ function openNewLeadModalForm() {
       </div>
       <div class="fr2">
         <div class="fg">
-          <label>Nhân viên Sales phụ trách *</label>
+          <label>Phân Sales phụ trách</label>
           <select id="m-lead-owner">
-            ${USERS_DB.filter(u => ['sales', 'manager', 'superadmin'].includes(u.role)).map(u => `
-              <option value="${u.id}" ${u.id === SESSION.id ? 'selected' : ''}>${esc(u.name)} (${esc(u.role.toUpperCase())})</option>
+            <option value="" ${(SESSION.role === 'manager' || SESSION.role === 'superadmin') ? 'selected' : ''}>⏳ Chưa phân — To be updated (Sales Manager chia sau)</option>
+            ${USERS_DB.filter(u => u.role === 'sales' && u.status === 'active').map(u => `
+              <option value="${u.id}" ${u.id === SESSION.id ? 'selected' : ''}>${esc(u.name)} (SALES)</option>
             `).join('')}
           </select>
         </div>
@@ -845,7 +846,9 @@ function openNewLeadModalForm() {
       return;
     }
 
-    const assignedRepId = ownerId || SESSION.id;
+    // Marketer aggregates leads; if no rep is chosen the lead stays unassigned
+    // ("to be updated") for the Sales Manager to filter and distribute later.
+    const isUnassigned = !ownerId;
 
     const newLeadObj = {
       id: uid('led'),
@@ -855,36 +858,41 @@ function openNewLeadModalForm() {
       phone,
       email,
       source: document.getElementById('m-lead-source').value,
-      status: 'new',
+      status: isUnassigned ? 'to_be_updated' : 'new',
       value: val,
-      ownerId: assignedRepId,
+      ownerId: ownerId || '',
+      createdBy: SESSION.id,
       createdAt: new Date().toLocaleDateString('vi-VN'),
-      deadline: '30/05/2026',
+      deadline: '30/06/2026',
       priority: document.getElementById('m-lead-priority').value,
       notes: notesInput || (type === 'b2c' ? 'Khởi tạo thủ công nhanh B2C' : 'Khởi tạo thủ công nhanh B2B')
     };
 
     LEADS_DB.unshift(newLeadObj);
 
-    // Pipeline T1->T2 (BA doc): a new lead must also be recorded in the
-    // B2B/B2C customer database, and the assigned rep gets a real email.
+    // Pipeline T1: a new lead is always recorded in the B2B/B2C customer DB.
     ensureCustomerFromLead(newLeadObj);
-    dispatchAssignmentEmail(newLeadObj);
-
-    // TRIGGER IMMEDIATE NOTIFICATION TO THE DELEGATED SALESPERSON
-    if (assignedRepId) {
-      NOTIFICATIONS_DB.unshift({
-        id: `notif-sales-${Date.now()}`,
-        userId: assignedRepId,
-        unread: true,
-        title: '⚡ [Chỉ Định Thủ Công] BẠN ĐƯỢC GIAO LEAD MỚI!',
-        content: `Marketer/Trưởng bộ phận vừa tạo & gán Lead mới "${name}" (SĐT: ${phone}) trực tiếp cho bạn chăm sóc. Vui lòng tác nghiệp ngay!`,
-        time: 'Vừa xong',
-        user: SESSION.name || 'Hệ thống tự động'
-      });
-    }
 
     closeActiveModal();
+
+    if (isUnassigned) {
+      writeAuditLog(`Marketer tổng hợp Lead "${name}" - để TRẠNG THÁI "To be updated" chờ Sales Manager chia`, 'Leads Collection');
+      toast('📥 Đã tổng hợp Lead mới ở trạng thái "To be updated". Sales Manager sẽ lọc & chia cho Sales.', 'info');
+      if (CUR_PAGE === 'leads') renderPageContent('leads');
+      return;
+    }
+
+    // Assigned directly: notify + email the chosen rep, then run the funnel.
+    dispatchAssignmentEmail(newLeadObj);
+    NOTIFICATIONS_DB.unshift({
+      id: `notif-sales-${Date.now()}`,
+      userId: ownerId,
+      unread: true,
+      title: '⚡ [Chỉ Định Thủ Công] BẠN ĐƯỢC GIAO LEAD MỚI!',
+      content: `Marketer/Trưởng bộ phận vừa tạo & gán Lead mới "${name}" (SĐT: ${phone}) trực tiếp cho bạn chăm sóc. Vui lòng tác nghiệp ngay!`,
+      time: 'Vừa xong',
+      user: SESSION.name || 'Hệ thống tự động'
+    });
 
     if (val > 0) {
       // Trigger the majestic semi-agentic automatic flow!
@@ -5016,6 +5024,71 @@ export async function sendMarketerEmail() {
   if (CUR_PAGE === 'kpi-calls') renderPageContent('kpi-calls');
 }
 
+// ---- Sales Manager: filter & distribute unassigned ("to be updated") leads ----
+export function openAssignLeadModal(leadId) {
+  if (!SESSION || !(SESSION.role === 'manager' || SESSION.role === 'superadmin')) {
+    toast('🔒 Chỉ Sales Manager / Quản trị mới được lọc và chia Lead!', 'error');
+    return;
+  }
+  const lead = LEADS_DB.find(l => l.id === leadId);
+  if (!lead) return;
+
+  const reps = USERS_DB.filter(u => u.role === 'sales' && u.status === 'active');
+  const bodyHtml = `
+    <div class="auth-body">
+      <div class="panel" style="background:#fffbeb; border:1.5px dashed #f59e0b; padding:12px; border-radius:8px; margin-bottom:12px;">
+        <p style="font-size:12px; color:#92400e; margin:0; line-height:1.6;">
+          <i class="fa-solid fa-people-arrows"></i> Lead <strong>${esc(lead.name)}</strong> đang ở trạng thái
+          <strong>"To be updated"</strong>. Chọn Sales để chia. Khi chia xong, hệ thống tự gửi email + thông báo cho Sales đó.
+        </p>
+      </div>
+      <div class="fg" style="margin:0;">
+        <label>Phân cho Sales phụ trách *</label>
+        <select id="assign-lead-rep">
+          ${reps.map(r => `<option value="${r.id}">${esc(r.name)} — ${esc(r.dept || 'Kinh doanh')}</option>`).join('')}
+        </select>
+      </div>
+    </div>
+  `;
+  const footerHtml = `
+    <button class="btn bl" onclick="window.crmApp.closeActiveModal()">Thoát</button>
+    <button class="btn pr" onclick="window.crmApp.confirmAssignLead('${lead.id}')"><i class="fa-solid fa-share-from-square"></i> Chia Lead cho Sales</button>
+  `;
+  openModalElement('CHIA LEAD CHO SALES (Sales Manager)', bodyHtml, footerHtml);
+}
+
+export function confirmAssignLead(leadId) {
+  const lead = LEADS_DB.find(l => l.id === leadId);
+  if (!lead) return;
+  const repId = document.getElementById('assign-lead-rep')?.value;
+  const rep = USERS_DB.find(u => u.id === repId);
+  if (!rep) { toast('Hãy chọn một Sales để chia!', 'error'); return; }
+
+  lead.ownerId = repId;
+  if (lead.status === 'to_be_updated') lead.status = 'new';
+
+  // Keep the mirrored customer record's owner in sync with the lead
+  const phoneKey = cleanPhone(lead.phone);
+  const contact = CONTACTS_DB.find(c => cleanPhone(c.phone) === phoneKey ||
+    (lead.email && c.email && c.email.toLowerCase() === lead.email.toLowerCase()));
+  if (contact) contact.ownerId = repId;
+
+  dispatchAssignmentEmail(lead);
+  NOTIFICATIONS_DB.unshift({
+    id: `notif-sales-${Date.now()}`,
+    userId: repId,
+    unread: true,
+    title: '⚡ [Sales Manager Chia Lead] BẠN ĐƯỢC GIAO LEAD MỚI!',
+    content: `Sales Manager ${SESSION.name} vừa chia Lead "${lead.name}" (SĐT: ${lead.phone}) cho bạn. Vui lòng tiếp cận ngay!`,
+    time: 'Vừa xong',
+    user: SESSION.name
+  });
+  writeAuditLog(`Sales Manager chia Lead "${lead.name}" cho ${rep.name}`, 'Leads Collection');
+  toast(`✅ Đã chia Lead "${lead.name}" cho ${rep.name} & gửi email thông báo!`, 'success');
+  closeActiveModal();
+  if (CUR_PAGE === 'leads') renderPageContent('leads');
+}
+
 // ---- 4) Per-rep parameterized settings (NO hardcoded emails) ----
 export function editRepNotifyEmail(repId) {
   const rep = USERS_DB.find(u => u.id === repId);
@@ -5221,7 +5294,7 @@ export function launchCallFromPicker() {
 Object.assign(window.crmApp || (window.crmApp = {}), {
   openCallSession, beginDial, onReachChange, cancelCallSession, submitCallOutcome,
   editRepNotifyEmail, editRepKpiTarget, launchCallFromPicker,
-  revealSecuredField, sendMarketerEmail
+  revealSecuredField, sendMarketerEmail, openAssignLeadModal, confirmAssignLead
 });
 
 async function init() {
