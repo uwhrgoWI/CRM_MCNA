@@ -50,7 +50,7 @@ export function drawLoginScreen() {
       <div class="auth-card animate-fadeIn">
         <div class="auth-brand">
           <div class="logo-w" style="justify-content: center; margin-bottom: 8px;">
-            <div class="logo-ico"><i class="fa-solid fa-fire text-white"></i></div>
+            <div class="logo-ico logo-img"><img src="/mcna-logo.png" alt="MCNA Technology School" onerror="this.parentElement.className='logo-ico';this.parentElement.innerHTML='<i class=&quot;fa-solid fa-fire text-white&quot;></i>'" /></div>
             <span class="brand-title">MCNA CRM VN</span>
           </div>
           <p class="brand-tagline">Hệ thống Trợ lý Kinh doanh & Chăm sóc Khách hàng</p>
@@ -190,7 +190,7 @@ export function drawRegisterScreen(step) {
       <div class="auth-card animate-fadeIn">
         <div class="auth-brand">
           <div class="logo-w" style="justify-content: center; margin-bottom: 4px;">
-            <div class="logo-ico"><i class="fa-solid fa-fire text-white"></i></div>
+            <div class="logo-ico logo-img"><img src="/mcna-logo.png" alt="MCNA Technology School" onerror="this.parentElement.className='logo-ico';this.parentElement.innerHTML='<i class=&quot;fa-solid fa-fire text-white&quot;></i>'" /></div>
             <span class="brand-title">ĐĂNG KÝ FULFILLMENT</span>
           </div>
           <p class="brand-tagline">Thiết lập tài khoản Enterprise CRM Pro</p>
@@ -540,7 +540,7 @@ export function buildSidebar(session, activePage, isCollapsed) {
     <aside class="${sbClass}" id="main-sidebar">
       <div class="sb-header">
         <div class="logo-w">
-          <div class="logo-ico"><i class="fa-solid fa-fire text-white"></i></div>
+          <div class="logo-ico logo-img"><img src="/mcna-logo.png" alt="MCNA Technology School" onerror="this.parentElement.className='logo-ico';this.parentElement.innerHTML='<i class=&quot;fa-solid fa-fire text-white&quot;></i>'" /></div>
           <span class="brand-title" style="font-size: 16px;">MCNA CRM VN</span>
         </div>
         <button class="collapse-btn" id="sidebar-toggle-trigger" aria-label="Collapse Menu">
