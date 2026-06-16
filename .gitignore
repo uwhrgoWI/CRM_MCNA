@@ -9,3 +9,6 @@ coverage/
 .vercel
 
 scripts/db-password.local.txt
+
+deploy/pkg/
+deploy/*.tar.gz

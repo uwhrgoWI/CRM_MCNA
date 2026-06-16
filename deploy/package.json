@@ -1,0 +1,14 @@
+{
+  "name": "mcna-crm-vps",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Self-hosted server for crm.mcna.vn (static + /api/notify)",
+  "main": "vps-server.cjs",
+  "scripts": {
+    "start": "node vps-server.cjs"
+  },
+  "dependencies": {
+    "express": "^4.21.2",
+    "nodemailer": "^6.9.16"
+  }
+}
