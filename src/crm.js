@@ -9,7 +9,7 @@ import {
 
 import { bootLoadFromCloud, isCloudEnabled, syncNow } from './crm-supabase.js';
 
-import { svgBarChart, svgLineChart, svgDonut, svgFunnel, svgSparkline } from './crm-charts.js';
+import { svgBarChart, svgLineChart, svgDonut, svgFunnel } from './crm-charts.js';
 
 import {
   drawLoginScreen, drawRegisterScreen, drawForgotScreen,
@@ -251,11 +251,6 @@ function renderPageContent(pageId) {
       ];
       svgDonut(donutData, 'sa-donut-chart-container');
 
-      // Mini sparks trends
-      USERS_DB.filter(u=>u.role==='sales').forEach(u => {
-        svgSparkline([u.dealsWon, u.dealsWon + 2, u.dealsWon * 1.5, u.dealsWon - 1, u.dealsWon + 3], `spark-rep-${u.id}`);
-      });
-      
       setupSuperAdminEvents();
     }, 50);
   } 

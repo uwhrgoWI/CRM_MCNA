@@ -741,11 +741,13 @@ export function renderSuperAdminDashboard() {
                 <th>Phòng ban</th>
                 <th style="text-align:right;">Deals</th>
                 <th style="text-align:right;">Doanh thu</th>
-                <th>Trend (Spark)</th>
               </tr>
             </thead>
             <tbody>
-              ${USERS_DB.filter(u=>u.role==='sales').slice(0, 4).map((u, i) => `
+              ${USERS_DB.filter(u=>u.role==='sales').map(u => {
+                const wonDeals = DEALS_DB.filter(d => d.ownerId === u.id && d.stage === 'closed_won');
+                return { u, dealsWon: wonDeals.length, revenue: wonDeals.reduce((sum, d) => sum + Number(d.value || 0), 0) };
+              }).sort((a, b) => b.revenue - a.revenue).slice(0, 4).map(({ u, dealsWon, revenue }) => `
                 <tr>
                   <td>
                     <div style="display:flex; align-items:center; gap:6px;">
@@ -754,11 +756,8 @@ export function renderSuperAdminDashboard() {
                     </div>
                   </td>
                   <td><span class="chip bl" style="font-size:9px; padding:1px 4px;">${esc(u.dept)}</span></td>
-                  <td style="text-align:right;" class="tmono">${u.dealsWon} won</td>
-                  <td style="text-align:right;" class="cell-bold tmono text-emerald-600">${fmtVND(u.revenue || 0)}</td>
-                  <td>
-                    <div id="spark-rep-${u.id}" style="height:15px; width:50px;"></div>
-                  </td>
+                  <td style="text-align:right;" class="tmono">${dealsWon} won</td>
+                  <td style="text-align:right;" class="cell-bold tmono text-emerald-600">${fmtVND(revenue)}</td>
                 </tr>
               `).join('')}
             </tbody>
