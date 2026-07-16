@@ -654,13 +654,27 @@ export function renderSuperAdminDashboard() {
   const dealsWon = DEALS_DB.filter(d => d.stage === 'closed_won').length;
   const ticketsCount = TICKETS_DB.filter(t => t.status === 'open').length;
 
+  // MTD collected cashflow - live from paid/partial invoices this calendar month
+  const now = new Date();
+  const invValue = (inv) => Number(inv.total ?? inv.amount ?? 0);
+  const mtdCollected = INVOICES_DB.filter(inv => {
+    if (inv.status !== 'paid' && inv.status !== 'partial') return false;
+    const d = new Date(inv.paidAt || inv.createdAt || 0);
+    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
+  }).reduce((sum, inv) => sum + invValue(inv) * (inv.status === 'partial' ? 0.5 : 1), 0);
+
+  // Win rate - live from real deal stages, 0 when there is no data
+  const winRate = DEALS_DB.length > 0 ? Math.round((dealsWon / DEALS_DB.length) * 100) : 0;
+
+  const proposalCount = DEALS_DB.filter(d => d.stage === 'proposal').length;
+
   return `
     <div class="page-container animate-fadeIn" style="display:flex; flex-direction:column; gap:12px;">
       <!-- Welcome Hero Jumbotron (TIGHTENED) -->
       <div class="panel" style="background:var(--grad); border:none; color:white; padding:12px 20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:4px;">
         <div style="display:flex; flex-direction:column; gap:2px;">
           <h2 style="font-family:var(--fd); font-size:16px; font-weight:800;">Chào Ngày Mới, Cao Khải Hoàn!</h2>
-          <p style="font-size:11.5px; color:rgba(255,255,255,0.8);">Cổng điều phối Super Admin. <i class="fa-solid fa-calendar-check"></i> Hôm nay có <strong class="text-amber-300">3 Deals Báo Giá</strong> sắp chốt.</p>
+          <p style="font-size:11.5px; color:rgba(255,255,255,0.8);">Cổng điều phối Super Admin. <i class="fa-solid fa-calendar-check"></i> Hiện có <strong class="text-amber-300">${proposalCount} Deals Báo Giá</strong> đang chờ chốt.</p>
         </div>
         <div style="display:flex; gap:6px;">
           <button class="btn bl xs" id="sa-export-sc-data" style="background-color:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); color:white; font-size:11px; padding:4px 8px;"><i class="fa-solid fa-download"></i> Tải sao lưu DB</button>
@@ -672,28 +686,28 @@ export function renderSuperAdminDashboard() {
       <div class="krow" style="gap:10px; margin-bottom:2px;">
         <div class="kc b" style="padding:10px 14px;">
           <span class="kc-title" style="font-size:11px;">Dòng chi trả MTD</span>
-          <span class="kc-val" style="font-size:16px; font-weight:800; line-height:1.2;">${fmtVND(1654000000)}</span>
-          <span class="kc-sub" style="font-size:9.5px; margin-top:2px;"><i class="fa-solid fa-circle-up text-emerald-500"></i> <strong class="kc-trend-up">+14%</strong></span>
+          <span class="kc-val" style="font-size:16px; font-weight:800; line-height:1.2;">${fmtVND(mtdCollected)}</span>
+          <span class="kc-sub" style="font-size:9.5px; margin-top:2px;">Hóa đơn đã/đang thu tháng này</span>
         </div>
         <div class="kc p" style="padding:10px 14px;">
           <span class="kc-title" style="font-size:11px;">Cơ Hội thắng</span>
           <span class="kc-val" style="font-size:16px; font-weight:800; line-height:1.2;">${dealsWon}</span>
-          <span class="kc-sub" style="font-size:9.5px; margin-top:2px;"><i class="fa-solid fa-circle-down text-rose-500"></i> <strong class="kc-trend-down">-2%</strong></span>
+          <span class="kc-sub" style="font-size:9.5px; margin-top:2px;">Trên ${DEALS_DB.length} deals</span>
         </div>
         <div class="kc g" style="padding:10px 14px;">
           <span class="kc-title" style="font-size:11px;">Leads mới</span>
           <span class="kc-val" style="font-size:16px; font-weight:800; line-height:1.2;">${leadsCount}</span>
-          <span class="kc-sub" style="font-size:9.5px; margin-top:2px;"><i class="fa-solid fa-circle-up text-emerald-500"></i> <strong class="kc-trend-up">+8%</strong></span>
+          <span class="kc-sub" style="font-size:9.5px; margin-top:2px;">Tổng lead hiện có</span>
         </div>
         <div class="kc a" style="padding:10px 14px;">
           <span class="kc-title" style="font-size:11px;">Win Rate</span>
-          <span class="kc-val" style="font-size:16px; font-weight:800; line-height:1.2;">68%</span>
-          <span class="kc-sub" style="font-size:9.5px; margin-top:2px;">Đạt mục tiêu SLA</span>
+          <span class="kc-val" style="font-size:16px; font-weight:800; line-height:1.2;">${winRate}%</span>
+          <span class="kc-sub" style="font-size:9.5px; margin-top:2px;">${DEALS_DB.length} deals</span>
         </div>
         <div class="kc r" style="padding:10px 14px;">
           <span class="kc-title" style="font-size:11px;">Support Tickets</span>
           <span class="kc-val" style="font-size:16px; font-weight:800; line-height:1.2;">${ticketsCount}</span>
-          <span class="kc-sub" style="font-size:9.5px; margin-top:2px;">SLA TB: <strong class="text-emerald-600">18m</strong></span>
+          <span class="kc-sub" style="font-size:9.5px; margin-top:2px;">Trên ${TICKETS_DB.length} tổng ticket</span>
         </div>
       </div>
 
