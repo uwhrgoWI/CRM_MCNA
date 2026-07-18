@@ -58,24 +58,23 @@ export function drawLoginScreen() {
 
         <form id="login-form" class="auth-body">
           <div class="fg">
-            <label>Địa chỉ Email công sở</label>
-            <input type="email" id="login-email" required placeholder="nhanvien@crm.vn" value="superadmin@crm.vn" />
+            <label>Tên đăng nhập</label>
+            <input type="text" id="login-email" required autocomplete="username" placeholder="Ví dụ: admin" />
           </div>
           <div class="fg">
-            <label>Mật khẩu khóa học</label>
+            <label>Mật khẩu</label>
             <div style="position:relative;">
-              <input type="password" id="login-pw" required placeholder="••••••••" value="Admin@123" />
+              <input type="password" id="login-pw" required autocomplete="current-password" placeholder="••••••••" />
               <button type="button" id="toggle-pw-btn" style="position:absolute; right:12px; top:50%; transform:translateY(-50%); background:none; border:none; cursor:pointer; color:var(--n400);">
                 <i class="fa-solid fa-eye"></i>
               </button>
             </div>
           </div>
-          
-          <div style="display:flex; justify-content:space-between; align-items:center; font-size:12px; font-weight:600; margin-top:-4px;">
+
+          <div style="display:flex; justify-content:flex-end; align-items:center; font-size:12px; font-weight:600; margin-top:-4px;">
             <label style="display:flex; align-items:center; gap:6px; cursor:pointer;">
               <input type="checkbox" id="login-remember" checked /> Ghi nhớ đăng nhập
             </label>
-            <a href="#" id="go-forgot-btn">Quên mật khẩu?</a>
           </div>
 
           <button type="submit" class="btn-auth" id="login-submit-btn">
@@ -84,169 +83,7 @@ export function drawLoginScreen() {
         </form>
 
         <div style="text-align:center; font-size:12px; font-weight:600; color:var(--n500);">
-          Chưa có tài khoản doanh nghiệp? <a href="#" id="go-register-btn">Đăng ký phễu mới</a>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-export function drawRegisterScreen(step) {
-  let stepContent = '';
-  if (step === 1) {
-    stepContent = `
-      <div class="fr2">
-        <div class="fg">
-          <label>Họ và Tên chủ biên *</label>
-          <input type="text" id="reg-fullname" required placeholder="Ví dụ: Nguyễn Văn An" />
-        </div>
-        <div class="fg">
-          <label>Số điện thoại *</label>
-          <input type="tel" id="reg-phone" required placeholder="Ví dụ: 0912345678" />
-        </div>
-      </div>
-      <div class="fr2">
-        <div class="fg">
-          <label>Phòng ban tác nghiệp</label>
-          <select id="reg-dept">
-            <option value="Kinh doanh miền Bắc">Ban Kinh doanh - Sales</option>
-            <option value="Marketing">Phòng Marketing</option>
-            <option value="Chăm sóc Khách hàng">Hỗ trợ CSKH</option>
-          </select>
-        </div>
-        <div class="fg">
-          <label>Chức vụ đảm nhiệm</label>
-          <input type="text" id="reg-title" placeholder="Ví dụ: Chuyên viên kinh doanh" value="Sales Representative" />
-        </div>
-      </div>
-    `;
-  } else if (step === 2) {
-    stepContent = `
-      <div class="fg">
-        <label>Địa chỉ Email công việc *</label>
-        <input type="email" id="reg-email" required placeholder="email@congty.com" />
-      </div>
-      <div class="fg">
-        <label>Mật khẩu khởi tạo *</label>
-        <input type="password" id="reg-pw" required placeholder="Tối thiểu 8 ký tự, có ký tự đặc biệt" />
-      </div>
-      <div class="pw-strength">
-        <div class="pw-strength-bars">
-          <div class="pw-strength-bar" id="psb-1"></div>
-          <div class="pw-strength-bar" id="psb-2"></div>
-          <div class="pw-strength-bar" id="psb-3"></div>
-          <div class="pw-strength-bar" id="psb-4"></div>
-        </div>
-        <div class="pw-strength-msg" id="reg-pw-strength-msg" style="color:var(--n500)">Độ bảo mật mật khẩu</div>
-      </div>
-      <div class="pw-chk-list">
-        <div class="pw-chk-item" id="pwc-8"><i class="fa-solid fa-circle-check"></i> Chứa tối thiểu 8 ký tự</div>
-        <div class="pw-chk-item" id="pwc-up"><i class="fa-solid fa-circle-check"></i> Chứa chữ Hoa</div>
-        <div class="pw-chk-item" id="pwc-num"><i class="fa-solid fa-circle-check"></i> Chứa ít nhất 1 số</div>
-        <div class="pw-chk-item" id="pwc-sp"><i class="fa-solid fa-circle-check"></i> Chứa ký tự đặc biệt</div>
-      </div>
-      <div class="fg">
-        <label>Xác nhận lại mật khẩu *</label>
-        <input type="password" id="reg-confirm" required placeholder="Xác nhận chính xác mật khẩu" />
-      </div>
-    `;
-  } else {
-    stepContent = `
-      <div class="fg">
-        <label>Tên Doanh nghiệp tác nghiệp *</label>
-        <input type="text" id="reg-company" required placeholder="Ví dụ: Công ty Công nghệ Aura JSC" />
-      </div>
-      <div class="fr2">
-        <div class="fg">
-          <label>Lĩnh vực ngành nghề</label>
-          <select id="reg-industry">
-            <option value="Công nghệ thông tin">Phần mềm & Công nghệ</option>
-            <option value="Tài chính ngân hàng">Kinh doanh Thương mại</option>
-            <option value="Y tế & Dược phẩm">Sản xuất & Phân phối</option>
-          </select>
-        </div>
-        <div class="fg">
-          <label>Quy mô nhân sự</label>
-          <select id="reg-size">
-            <option value="10-50">10 - 50 nhân sự</option>
-            <option value="50-200">50 - 200 nhân sự</option>
-            <option value="200+">Trên 200 nhân sự</option>
-          </select>
-        </div>
-      </div>
-      <div class="fg">
-        <label>Nguồn giới thiệu phễu</label>
-        <select id="reg-refer">
-          <option value="Facebook">Mạng xã hội Facebook</option>
-          <option value="Partner">Đối tác giới thiệu</option>
-          <option value="Google">Tìm kiếm Google</option>
-        </select>
-      </div>
-    `;
-  }
-
-  return `
-    <div class="auth-screen">
-      <div class="auth-card animate-fadeIn">
-        <div class="auth-brand">
-          <div class="logo-w" style="justify-content: center; margin-bottom: 4px;">
-            <div class="logo-ico logo-img"><img src="/mcna-logo.png" alt="MCNA Technology School" onerror="this.parentElement.className='logo-ico';this.parentElement.innerHTML='<i class=&quot;fa-solid fa-fire text-white&quot;></i>'" /></div>
-            <span class="brand-title">ĐĂNG KÝ FULFILLMENT</span>
-          </div>
-          <p class="brand-tagline">Thiết lập tài khoản Enterprise CRM Pro</p>
-        </div>
-
-        <div class="step-dots" style="margin: 12px 0 4px 0;">
-          <div class="step-dot ${step === 1 ? 'active' : ''}"></div>
-          <div class="step-dot ${step === 2 ? 'active' : ''}"></div>
-          <div class="step-dot ${step === 3 ? 'active' : ''}"></div>
-        </div>
-
-        <form id="register-step-form" class="auth-body">
-          ${stepContent}
-          
-          <div style="display:flex; justify-content:space-between; gap:12px; margin-top:12px;">
-            ${step > 1 ? '<button type="button" class="btn bl" id="reg-back-btn" style="flex:1;">Quay lại</button>' : ''}
-            <button type="submit" class="btn pr" id="reg-next-btn" style="flex:1.5;">
-              <span>${step === 3 ? 'Kích hoạt hệ thống' : 'Tiếp tục tiếp nối'}</span> 
-              <i class="fa-solid fa-arrow-right"></i>
-            </button>
-          </div>
-        </form>
-
-        <div style="text-align:center; font-size:12px; font-weight:600; color:var(--n500);">
-          Đã có tài khoản sẵn sàng? <a href="#" id="go-login-btn">Đăng nhập ngay</a>
-        </div>
-      </div>
-    </div>
-  `;
-}
-
-export function drawForgotScreen() {
-  return `
-    <div class="auth-screen">
-      <div class="auth-card animate-fadeIn">
-        <div class="auth-brand">
-          <div class="logo-w" style="justify-content: center; margin-bottom: 12px;">
-            <div class="logo-ico bg-amber-500"><i class="fa-solid fa-key text-white"></i></div>
-            <span class="brand-title" style="background:linear-gradient(135deg, #f59e0b, #d97706); -webkit-background-clip:text; -webkit-text-fill-color:transparent;">KHÔI PHỤC</span>
-          </div>
-          <p class="brand-tagline">Nhập Email phục vụ để nhận mã bảo mật OTP</p>
-        </div>
-
-        <form id="forgot-form" class="auth-body">
-          <div class="fg">
-            <label>Địa chỉ Email của bạn</label>
-            <input type="email" id="forgot-email" required placeholder="nhanvien@congty.vn" />
-          </div>
-
-          <button type="submit" class="btn pr" style="margin-top:12px;">
-            <span>Gửi mã khôi phục</span> <i class="fa-solid fa-paper-plane"></i>
-          </button>
-        </form>
-
-        <div style="text-align:center; font-size:12px; font-weight:600; color:var(--n500);">
-          Nhớ lại mật khẩu? <a href="#" id="go-login-btn">Quay lại đăng nhập</a>
+          Quên tài khoản hoặc mật khẩu? Liên hệ Admin để được cấp lại.
         </div>
       </div>
     </div>
@@ -433,72 +270,26 @@ export function buildSidebar(session, activePage, isCollapsed) {
       </div>
     `;
   }
-  // Sales Manager Sidebar Navigation
+  // Marketer Sidebar Navigation - lead intake only
   else if (role === 'manager') {
     navHtml = `
       <div class="nav-sec">
-        <p class="nav-sec-label font-bold text-violet-700">Khối Phòng Ban Marketing</p>
-        <div class="ni ${activePage === 'dashboard-manager' ? 'active' : ''}" data-page="dashboard-manager">
-          <span class="ni-ic"><i class="fa-solid fa-square-poll-vertical"></i></span>
-          <span class="ni-txt">Dashboard Marketers</span>
-        </div>
-        <div class="ni ${activePage === 'mcna-funnel' ? 'active' : ''}" data-page="mcna-funnel">
-          <span class="ni-ic"><i class="fa-solid fa-diagram-project text-purple-500"></i></span>
-          <span class="ni-txt font-semibold" style="color: #6366f1;">Phễu 5 Tầng MCNA</span>
-          <span class="ni-bd r" style="background:var(--p500); font-size:9px; padding:1px 3px;">LIVE Sim</span>
-        </div>
-        <div class="ni ${activePage === 'reports' ? 'active' : ''}" data-page="reports">
-          <span class="ni-ic"><i class="fa-solid fa-paste"></i></span>
-          <span class="ni-txt">Báo Cáo & Dự Báo</span>
-        </div>
-      </div>
-      
-      ${flowSecHtml}
-      
-      <div class="nav-sec">
-        <p class="nav-sec-label">Dữ liệu & Bổ trợ</p>
-        <div class="ni ${activePage === 'contacts' ? 'active' : ''}" data-page="contacts">
-          <span class="ni-ic"><i class="fa-solid fa-user-group"></i></span>
-          <span class="ni-txt font-semibold">Khách Hàng (B2B/B2C)</span>
-        </div>
-        <div class="ni ${activePage === 'sales-toolkit' ? 'active' : ''}" data-page="sales-toolkit">
-          <span class="ni-ic"><i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i></span>
-          <span class="ni-txt" style="font-weight:700;">Hộp Công Cụ Sales</span>
+        <p class="nav-sec-label font-bold text-violet-700">Marketing</p>
+        <div class="ni ${activePage === 'leads' ? 'active' : ''}" data-page="leads">
+          <span class="ni-ic" style="color:#6366f1;"><i class="fa-solid fa-user-plus"></i></span>
+          <span class="ni-txt">Tiếp Nhận Leads</span>
         </div>
       </div>
     `;
   }
-  // Sales Rep Sidebar Navigation
+  // Sales Rep Sidebar Navigation - leads (call + status ticks) only
   else if (role === 'sales') {
     navHtml = `
       <div class="nav-sec">
         <p class="nav-sec-label">Bàn làm việc</p>
-        <div class="ni ${activePage === 'dashboard-salesrep' ? 'active' : ''}" data-page="dashboard-salesrep">
-          <span class="ni-ic"><i class="fa-solid fa-user-tie"></i></span>
-          <span class="ni-txt">Dashboard Cá Nhân</span>
-        </div>
-        <div class="ni ${activePage === 'mcna-funnel' ? 'active' : ''}" data-page="mcna-funnel">
-          <span class="ni-ic"><i class="fa-solid fa-diagram-project text-purple-500"></i></span>
-          <span class="ni-txt font-semibold" style="color: #6366f1;">Phễu 5 Tầng MCNA</span>
-          <span class="ni-bd r" style="background:var(--p500); font-size:9px; padding:1px 3px;">LIVE Sim</span>
-        </div>
-      </div>
-      
-      ${flowSecHtml}
-      
-      <div class="nav-sec">
-        <p class="nav-sec-label">Dữ liệu & Bổ trợ</p>
-        <div class="ni ${activePage === 'contacts' ? 'active' : ''}" data-page="contacts">
-          <span class="ni-ic"><i class="fa-solid fa-user-group"></i></span>
-          <span class="ni-txt font-semibold">Khách Hàng (B2B/B2C)</span>
-        </div>
-        <div class="ni ${activePage === 'products' ? 'active' : ''}" data-page="products">
-          <span class="ni-ic"><i class="fa-solid fa-boxes-stacked"></i></span>
-          <span class="ni-txt">Mã Hàng Sản Phẩm</span>
-        </div>
-        <div class="ni ${activePage === 'sales-toolkit' ? 'active' : ''}" data-page="sales-toolkit">
-          <span class="ni-ic"><i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i></span>
-          <span class="ni-txt" style="font-weight:700;">Hộp Công Cụ Sales</span>
+        <div class="ni ${activePage === 'leads' ? 'active' : ''}" data-page="leads">
+          <span class="ni-ic" style="color:#6366f1;"><i class="fa-solid fa-phone-volume"></i></span>
+          <span class="ni-txt">Leads Của Tôi</span>
         </div>
       </div>
     `;
@@ -785,186 +576,122 @@ export function renderSuperAdminDashboard() {
   `;
 }
 
-export function renderManagerDashboard() {
-  const pipelineValue = DEALS_DB.filter(d => d.stage !== 'closed_won' && d.stage !== 'closed_lost').reduce((sum, d) => sum + d.value, 0);
-  const leadsThisWeek = LEADS_DB.filter(l => l.priority === 'hot').length;
-  const overdueTasks = TASKS_DB.filter(t => t.status !== 'completed').length;
-
+// ---- Marketer: lead intake only (no dashboards, no other CRM modules) ----
+export function renderMarketerIntakePage(myLeads, session) {
+  const statusLabels = {
+    new: '🆕 Mới (chưa ai nhận)', contacting: '📞 Sales đã liên hệ', proposal: '💵 Đã báo giá',
+    awaiting_payment: '⏳ Đợi chuyển khoản', paid: '✅ Đã chuyển khoản', lost: '❌ Không mua'
+  };
   return `
     <div class="page-container animate-fadeIn">
-      <!-- Jumbotron -->
       <div class="panel" style="background:linear-gradient(135deg, var(--p600), var(--b600)); color:white; border:none;">
-        <h2 style="font-family:var(--fd); font-size:20px; font-weight:700;">Nhật ký Giám sát Đội ngũ: Trực thuộc Phòng Bán hàng B2B</h2>
-        <p style="font-size:13px; color:rgba(255,255,255,0.8); margin-top:4px;">Tổng giá trị phễu dự toán kinh doanh (Pipeline Value) đang lưu động đàm phán chốt là <strong class="text-amber-300 font-mono" style="font-size:15px;">${fmtVND(pipelineValue)}</strong></p>
+        <h2 style="font-family:var(--fd); font-size:18px; font-weight:700;">Chào ${esc(session.name)}!</h2>
+        <p style="font-size:12.5px; color:rgba(255,255,255,0.85); margin-top:4px;">Công việc của bạn: tiếp nhận thông tin khách hàng quan tâm. Sales sẽ tự động thấy Lead mới và gọi điện chăm sóc.</p>
       </div>
 
-      <!-- KPI metrics -->
-      <div class="krow">
-        <div class="kc b">
-          <span class="kc-title">Trị giá Deals phễu</span>
-          <span class="kc-val font-mono">${fmtVND(pipelineValue)}</span>
-          <span class="kc-sub">Tổng cơ hội mua sắm lưu động</span>
-        </div>
-        <div class="kc p">
-          <span class="kc-title">Đội ngũ Close Rate</span>
-          <span class="kc-val font-mono">68%</span>
-          <span class="kc-sub">Hạn mức chỉ tiêu kỉ luật Sales</span>
-        </div>
-        <div class="kc g">
-          <span class="kc-title">Leads ưu tiên Hot MTD</span>
-          <span class="kc-val font-mono">${leadsThisWeek}</span>
-          <span class="kc-sub">Mức độ hoạt động phễu cao</span>
-        </div>
-        <div class="kc r">
-          <span class="kc-title">Nhiệm vụ quá hạn</span>
-          <span class="kc-val font-mono text-rose-500">${overdueTasks}</span>
-          <span class="kc-sub">Cần rà soát cuộc họp Giao Ban</span>
-        </div>
+      <div class="panel" style="text-align:center; padding:28px;">
+        <button class="btn pr" id="marketer-add-lead-btn" style="font-size:15px; padding:14px 28px;"><i class="fa-solid fa-user-plus"></i> Tiếp Nhận Lead Mới</button>
       </div>
 
-      <!-- Charts Section: Funnel and Team Stats -->
-      <div class="db-grid-2x">
-        <div class="panel">
-          <h3 style="font-family:var(--fd); font-size:14px; font-weight:700; margin-bottom:12px;"><i class="fa-solid fa-funnel-dollar text-indigo-500"></i> Phân tích tỉ lệ rớt phễu bán hàng (Conversion Funnel)</h3>
-          <div id="m-funnel-container"></div>
-        </div>
-
-        <div class="panel">
-          <h3 style="font-family:var(--fd); font-size:14px; font-weight:700; margin-bottom:12px;"><i class="fa-solid fa-bullseye text-primary-500"></i> Tiến trình doanh hiệu chỉ tiêu đội ngũ (MTD Quota)</h3>
-          <div style="display:flex; flex-direction:column; gap:12px;">
-            ${USERS_DB.filter(u => u.role === 'sales').slice(0,4).map(sales => {
-              const percentage = Math.round((sales.revenue / sales.target) * 100) || 0;
-              const barColor = percentage > 80 ? 'g' : percentage > 50 ? 'b' : 'a';
-              return `
-                <div style="font-size:12px;">
-                  <div style="display:flex; justify-content:space-between; margin-bottom:4px; font-weight:700;">
-                    <span>${esc(sales.name)}</span>
-                    <span class="tmono">${fmtVND(sales.revenue)} / ${fmtVND(sales.target)} (${percentage}%)</span>
-                  </div>
-                  <div class="pw tk">
-                    <div class="pb ${barColor}" style="width: ${percentage}%"></div>
-                  </div>
-                </div>
-              `;
-            }).join('')}
+      <div class="panel" style="padding:0; overflow-x:auto;">
+        <h3 style="font-family:var(--fd); font-size:14px; font-weight:700; padding:14px 18px 0;"><i class="fa-solid fa-list"></i> Lead bạn đã tiếp nhận (${myLeads.length})</h3>
+        ${myLeads.length === 0 ? `
+          <div class="empty">
+            <div class="empty-ico"><i class="fa-solid fa-inbox"></i></div>
+            <p class="empty-msg">Chưa có Lead nào</p>
+            <p class="empty-sub">Bấm nút "Tiếp Nhận Lead Mới" ở trên để bắt đầu.</p>
           </div>
-        </div>
+        ` : `
+          <table class="tw">
+            <thead>
+              <tr><th>Họ Tên</th><th>SĐT</th><th>Công ty</th><th>Trạng thái</th><th>Ngày tạo</th></tr>
+            </thead>
+            <tbody>
+              ${myLeads.map(l => `
+                <tr>
+                  <td class="cell-bold">${esc(l.name)}</td>
+                  <td class="tmono">${esc(l.phone)}</td>
+                  <td>${esc(l.company)}</td>
+                  <td><span class="chip bl">${statusLabels[l.status] || esc(l.status)}</span></td>
+                  <td class="tmono">${esc(l.createdAt)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        `}
       </div>
-
-      <!-- Bản đồ Tiến trình Kinh doanh 5 Giai đoạn tích hợp -->
-      <div style="margin-top: 24px;">
-        <div style="background-color: white; border-radius: var(--r); border: 1px solid var(--bd); padding: 20px; box-shadow: var(--sh);">
-          <div style="border-bottom: 2px solid #818cf8; padding-bottom: 10px; margin-bottom: 16px;">
-            <h3 style="font-family: var(--fd); font-size: 16px; font-weight: 800; color: #4338ca; display: flex; align-items: center; gap: 8px; margin: 0;">
-              <i class="fa-solid fa-route animate-pulse"></i> KHÔNG GIAN BẢN ĐỒ TIẾN TRÌNH KINH DOANH 5 BƯỚC (UNIFIED PIPELINE)
-            </h3>
-            <p style="font-size: 12px; color: var(--n500); margin-top: 4px; margin-bottom: 0;">
-              Hội tụ đầy đủ thông tin xuyên suốt từ giai đoạn tiếp nhận Leads mới đến đàm phán hợp đồng, thanh quyết toán hóa đơn nợ dòng tiền và vận hành SLA Tickets xử lý sự vụ.
-            </p>
-          </div>
-          ${renderUnifiedSalesPipeline()}
-        </div>
-      </div>
-
     </div>
   `;
 }
 
-export function renderSalesRepDashboard() {
-  const myDeals = DEALS_DB.filter(d => d.ownerId === 'usr-sales');
-  const myRevenue = myDeals.filter(d => d.stage === 'closed_won').reduce((sum, d) => sum + d.value, 0);
-  const myTasks = TASKS_DB.filter(t => t.ownerId === 'usr-sales' && t.status !== 'completed');
+// ---- Sales: no manual data entry — claim via call, then one-tap status ticks ----
+export function renderSalesLeadsBoard(unclaimed, mine, session) {
+  const isB2C = (l) => l.leadType === 'b2c';
+
+  const renderContact = (l) => isB2C(l)
+    ? `<span style="font-family:var(--fm); font-size:11.5px;"><i class="fa-solid fa-phone"></i> ${maskPhone(l.phone)}</span>`
+    : `<span style="font-family:var(--fm); font-size:11.5px;"><i class="fa-solid fa-phone"></i> ${esc(l.phone)}</span>`;
+
+  const unclaimedCards = unclaimed.length === 0 ? `
+    <div class="empty"><div class="empty-ico"><i class="fa-solid fa-inbox"></i></div><p class="empty-msg">Không có Lead mới đang chờ</p></div>
+  ` : unclaimed.map(l => `
+    <div class="panel" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; border-left:4px solid var(--b500);">
+      <div>
+        <div style="font-weight:700; font-size:13.5px;">${esc(l.name)} ${isB2C(l) ? '<span class="chip pu" style="font-size:9px;">B2C</span>' : '<span class="chip bl" style="font-size:9px;">B2B</span>'}</div>
+        <div style="font-size:11.5px; color:var(--n500); margin-top:2px;">${esc(l.company)} &middot; ${renderContact(l)}</div>
+      </div>
+      <button class="btn pr" onclick="window.crmApp.openCallSession('lead', '${l.id}')"><i class="fa-solid fa-phone-volume"></i> Gọi điện & Nhận xử lý</button>
+    </div>
+  `).join('');
+
+  const STATUS_ACTIONS = {
+    new: [{ to: 'lost', label: '❌ Không mua', cls: 'rd' }],
+    contacting: [{ to: 'proposal', label: '💵 Đã báo giá', cls: 'gr' }, { to: 'lost', label: '❌ Không mua', cls: 'rd' }],
+    proposal: [{ to: 'awaiting_payment', label: '⏳ Đợi khách chuyển khoản', cls: 'am' }, { to: 'lost', label: '❌ Không mua', cls: 'rd' }],
+    awaiting_payment: [{ to: 'paid', label: '✅ Khách đã chuyển khoản', cls: 'gr' }, { to: 'lost', label: '❌ Không mua', cls: 'rd' }],
+    paid: [],
+    lost: [{ to: 'new', label: '↺ Mở lại xử lý', cls: 'bl' }]
+  };
+  const STATUS_BADGE = {
+    new: '🆕 Chưa gọi', contacting: '📞 Mới tiếp cận', proposal: '💵 Đã báo giá',
+    awaiting_payment: '⏳ Đợi chuyển khoản', paid: '✅ Đã chuyển khoản (Thành công)', lost: '❌ Không mua'
+  };
+
+  const mineCards = mine.length === 0 ? `
+    <div class="empty"><div class="empty-ico"><i class="fa-solid fa-user-check"></i></div><p class="empty-msg">Bạn chưa nhận Lead nào</p><p class="empty-sub">Nhận Lead từ danh sách "Lead mới chờ xử lý" phía trên.</p></div>
+  ` : mine.map(l => {
+    const actions = STATUS_ACTIONS[l.status] || [];
+    const needsCall = l.status === 'new';
+    const lastCall = CALL_LOGS_DB.find(c => c.targetType === 'lead' && c.targetId === l.id);
+    const lastCallFailed = needsCall && lastCall && !lastCall.reached;
+    return `
+    <div class="panel" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; border-left:4px solid ${l.status === 'paid' ? 'var(--green)' : l.status === 'lost' ? 'var(--n300)' : 'var(--amber)'};">
+      <div>
+        <div style="font-weight:700; font-size:13.5px;">${esc(l.name)} ${isB2C(l) ? '<span class="chip pu" style="font-size:9px;">B2C</span>' : '<span class="chip bl" style="font-size:9px;">B2B</span>'}</div>
+        <div style="font-size:11.5px; color:var(--n500); margin-top:2px;">${esc(l.company)} &middot; ${renderContact(l)}</div>
+        <div style="margin-top:6px;"><span class="chip gy font-bold">${STATUS_BADGE[l.status] || esc(l.status)}</span></div>
+        ${lastCallFailed ? `<div style="margin-top:4px; font-size:10.5px; color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> Không tiếp cận được lần gần nhất: ${esc(lastCall.failReason)}</div>` : ''}
+      </div>
+      <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
+        ${needsCall ? `<button class="btn pr" onclick="window.crmApp.openCallSession('lead', '${l.id}')"><i class="fa-solid fa-phone-volume"></i> Gọi điện</button>` : ''}
+        ${l.status !== 'new' && l.status !== 'paid' && l.status !== 'lost' ? `<button class="btn bl" onclick="window.crmApp.openCallSession('lead', '${l.id}')"><i class="fa-solid fa-phone"></i> Gọi lại</button>` : ''}
+        ${actions.map(a => `<button class="btn ${a.cls}" onclick="window.crmApp.tickLeadStatus('${l.id}', '${a.to}')">${a.label}</button>`).join('')}
+      </div>
+    </div>
+  `; }).join('');
 
   return `
     <div class="page-container animate-fadeIn">
-      <!-- Rep customized greeting card -->
-      <div class="panel" style="background-color:white; border-left:4px solid var(--b600); display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
-        <div>
-          <h2 style="font-family:var(--fd); font-size:18px; font-weight:700;">Chào Chiến Binh Đặng Việt Triều!</h2>
-          <p style="font-size:12px; color:var(--n500); margin-top:2px;">Bạn có <strong class="text-rose-500">${myTasks.length} nhiệm vụ (Tasks)</strong> cần phải hoàn tất hôm nay để duy trì luân chuyển phễu đàm phán.</p>
-        </div>
-        <div style="display:flex; gap:8px;">
-          <button class="btn pr" id="rep-call-planning-btn"><i class="fa-solid fa-phone"></i> Đặt lịch hẹn thoại</button>
-        </div>
+      <div class="panel" style="background:linear-gradient(135deg, var(--p600), var(--b600)); color:white; border:none;">
+        <h2 style="font-family:var(--fd); font-size:18px; font-weight:700;">Chào ${esc(session.name)}!</h2>
+        <p style="font-size:12.5px; color:rgba(255,255,255,0.85); margin-top:4px;">Thấy Lead mới → Gọi điện tiếp cận → Tick trạng thái. Không cần nhập liệu.</p>
       </div>
 
-      <!-- Summary mini cards -->
-      <div class="krow">
-        <div class="kc b">
-          <span class="kc-title">Doanh số thu kiếm</span>
-          <span class="kc-val font-mono">${fmtVND(myRevenue)}</span>
-          <span class="kc-sub">So với KPI tháng: <strong>65%</strong></span>
-        </div>
-        <div class="kc p">
-          <span class="kc-title">Deals phụ trách</span>
-          <span class="kc-val font-mono">${myDeals.length}</span>
-          <span class="kc-sub">Vận hành trong 5 phân kỳ</span>
-        </div>
-        <div class="kc g">
-          <span class="kc-title">Hot Leads của tôi</span>
-          <span class="kc-val font-mono">${LEADS_DB.filter(l=>l.ownerId==='usr-sales' && l.priority==='hot').length}</span>
-          <span class="kc-sub">Cần bấm gọi ngay</span>
-        </div>
-      </div>
+      <h3 style="font-family:var(--fd); font-size:14px; font-weight:800; margin:16px 0 8px;"><i class="fa-solid fa-bell text-amber-500"></i> Lead mới chờ xử lý (${unclaimed.length})</h3>
+      <div style="display:flex; flex-direction:column; gap:8px;">${unclaimedCards}</div>
 
-      <!-- Tasks Checklist Widget (Fully Interactive) -->
-      <div class="db-grid-2x">
-        <div class="panel">
-          <h3 style="font-family:var(--fd); font-size:14px; font-weight:700; margin-bottom:12px;"><i class="fa-solid fa-list-check text-purple-500"></i> Sổ tay xử lý tác nghiệp Đặng Việt Triều (Tasks Checklist)</h3>
-          <div class="checklist-widget" id="salesrep-task-checklist-inject">
-            ${myTasks.length === 0 ? `
-              <div class="empty">
-                <div class="empty-ico"><i class="fa-solid fa-award"></i></div>
-                <p class="empty-msg">Tuyệt vời! Đã hoàn tất mọi nhiệm vụ!</p>
-              </div>
-            ` : myTasks.map(tsk => `
-              <div class="chk-item" data-task-id="${tsk.id}">
-                <input type="checkbox" class="chk-input" ${tsk.completed ? 'checked' : ''} />
-                <div class="tl-body">
-                  <span class="chk-label font-bold text-slate-800 ${tsk.completed ? 'text-decoration-line-through text-slate-400' : ''}">${esc(tsk.title)}</span>
-                  <p class="tl-meta"><i class="fa-solid fa-clock"></i> Hạn kỳ: ${tsk.dueDate} &middot; <span class="chip ${tsk.priority==='high'?'rd':'bl'}">${tsk.priority}</span></p>
-                </div>
-              </div>
-            `).join('')}
-          </div>
-        </div>
-
-        <div class="panel">
-          <h3 style="font-family:var(--fd); font-size:14px; font-weight:700; margin-bottom:12px;"><i class="fa-solid fa-user-clock text-indigo-500"></i> Lịch hẹn làm việc sắp diễn ra</h3>
-          <div style="display:flex; flex-direction:column; gap:12px;">
-            ${ACTIVITIES_DB.filter(a=>a.type==='meeting').slice(0, 3).map(meet => {
-              const quizCompleted = window.PREMEETING_QUIZ_COMPLETED && window.PREMEETING_QUIZ_COMPLETED[meet.id];
-              return `
-                <div style="padding:10px; border-radius:var(--rs); background-color:var(--n50); border:1px solid var(--bd); font-size:12px; display:flex; flex-direction:column; gap:4px;">
-                  <div style="display:flex; justify-content:space-between; align-items:start; gap:8px;">
-                    <p style="font-weight:700; color:var(--n800);"><i class="fa-solid fa-users"></i> ${esc(meet.title)}</p>
-                    ${quizCompleted ? `<span class="chip gr" style="font-size:9px; font-weight:700; white-space:nowrap;"><i class="fa-solid fa-trophy"></i> Ready: ${quizCompleted.score}/100</span>` : `<span class="chip rd" style="font-size:9px; font-weight:700; white-space:nowrap;"><i class="fa-solid fa-triangle-exclamation"></i> Quiz Chưa Làm</span>`}
-                  </div>
-                  <p style="color:var(--n500);">Thời điểm: <span class="tmono">${meet.datetime}</span></p>
-                  <p style="font-size:10px; color:var(--n400);">Ghi chú: ${esc(meet.outcome)}</p>
-                  <button class="btn pr xs font-bold" onclick="window.crmApp.openPreMeetingQuizModal('${meet.id}')" style="margin-top:6px; padding:3px 8px; font-size:10px; align-self:start;"><i class="fa-solid fa-circle-question"></i> Trả lời Quiz Chuẩn bị (Pre-Meeting Quiz)</button>
-                </div>
-              `;
-            }).join('')}
-          </div>
-        </div>
-      </div>
-
-      <!-- Bản đồ Tiến trình Kinh doanh 5 Giai đoạn tích hợp -->
-      <div style="margin-top: 24px; grid-column: span 2;">
-        <div style="background-color: white; border-radius: var(--r); border: 1px solid var(--bd); padding: 20px; box-shadow: var(--sh);">
-          <div style="border-bottom: 2px solid #818cf8; padding-bottom: 10px; margin-bottom: 16px;">
-            <h3 style="font-family: var(--fd); font-size: 16px; font-weight: 800; color: #4338ca; display: flex; align-items: center; gap: 8px; margin: 0;">
-              <i class="fa-solid fa-route animate-pulse"></i> SƠ ĐỒ TIẾN TRÌNH KINH DOANH CÁ NHÂN (UNIFIED 5-STAGE KANBAN)
-            </h3>
-            <p style="font-size: 12px; color: var(--n500); margin-top: 4px; margin-bottom: 0;">
-              Quản lý tiến trình dịch chuyển, liên kết Leads và Deals thông suốt của khách hàng từ tiếp cận đến thanh toán thanh quyết toán nợ và xử lý vận hành.
-            </p>
-          </div>
-          ${renderUnifiedSalesPipeline()}
-        </div>
-      </div>
-
+      <h3 style="font-family:var(--fd); font-size:14px; font-weight:800; margin:20px 0 8px;"><i class="fa-solid fa-user-tie text-indigo-500"></i> Lead của tôi (${mine.length})</h3>
+      <div style="display:flex; flex-direction:column; gap:8px;">${mineCards}</div>
     </div>
   `;
 }
@@ -1088,7 +815,10 @@ export function drawLeadsPage(leadsList, activeTab, filterState, viewerRole) {
         <div class="tab ${activeTab==='all'?'active':''}" data-tab="all">Tất cả trạng thái (${leadsList.length})</div>
         <div class="tab ${activeTab==='to_be_updated'?'active':''}" data-tab="to_be_updated" style="${tbuCount>0?'color:#b45309;font-weight:800;':''}">⏳ To be updated (${tbuCount})</div>
         <div class="tab ${activeTab==='new'?'active':''}" data-tab="new">Mới (${leadsList.filter(l=>l.status==='new').length})</div>
-        <div class="tab ${activeTab==='contacting'?'active':''}" data-tab="contacting">Đang xử lý (${leadsList.filter(l=>l.status==='contacting').length})</div>
+        <div class="tab ${activeTab==='contacting'?'active':''}" data-tab="contacting">📞 Đã tiếp cận (${leadsList.filter(l=>l.status==='contacting').length})</div>
+        <div class="tab ${activeTab==='proposal'?'active':''}" data-tab="proposal">💵 Đã báo giá (${leadsList.filter(l=>l.status==='proposal').length})</div>
+        <div class="tab ${activeTab==='awaiting_payment'?'active':''}" data-tab="awaiting_payment">⏳ Đợi chuyển khoản (${leadsList.filter(l=>l.status==='awaiting_payment').length})</div>
+        <div class="tab ${activeTab==='paid'?'active':''}" data-tab="paid">✅ Đã chuyển khoản (${leadsList.filter(l=>l.status==='paid').length})</div>
         <div class="tab ${activeTab==='qualified'?'active':''}" data-tab="qualified">Đã Qualify (${leadsList.filter(l=>l.status==='qualified').length})</div>
         <div class="tab ${activeTab==='lost'?'active':''}" data-tab="lost">Mất Lead (${leadsList.filter(l=>l.status==='lost').length})</div>
       </div>
@@ -2546,7 +2276,7 @@ export function renderUsersPermissionsPage() {
       <div class="filter-bar" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px;">
         <div>
           <h3 style="font-family:var(--fd); font-size:15px; font-weight:800; margin:0;"><i class="fa-solid fa-id-badge text-rose-500"></i> Quản Trị Tài Khoản Nhân Sự (${USERS_DB.length})</h3>
-          <p style="font-size:11.5px; color:var(--n500); margin-top:2px;">Admin tạo tài khoản cho Sales / Marketers; tài khoản Sales được gửi email kèm thông tin đăng nhập.</p>
+          <p style="font-size:11.5px; color:var(--n500); margin-top:2px;">Admin tạo tài khoản cho Sales / Marketers bằng Tên đăng nhập + mật khẩu đơn giản, không cần email thật.</p>
         </div>
         <button class="btn pr" id="users-create-btn" onclick="window.crmApp.openCreateUserModal()"><i class="fa-solid fa-user-plus"></i> Tạo Tài Khoản Mới</button>
       </div>
@@ -2556,7 +2286,7 @@ export function renderUsersPermissionsPage() {
           <thead>
             <tr>
               <th>Nhân viên</th>
-              <th>Email tác nghiệp</th>
+              <th>Tên đăng nhập</th>
               <th>Phòng ban bộ môn</th>
               <th>Vai trò phục vụ trên hệ thống</th>
               <th>Trạng thái tài khoản</th>

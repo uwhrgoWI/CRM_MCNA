@@ -12,9 +12,10 @@ import { bootLoadFromCloud, isCloudEnabled, syncNow } from './crm-supabase.js';
 import { svgBarChart, svgLineChart, svgDonut, svgFunnel } from './crm-charts.js';
 
 import {
-  drawLoginScreen, drawRegisterScreen, drawForgotScreen,
+  drawLoginScreen,
   buildSidebar, buildTopbar,
-  renderSuperAdminDashboard, renderManagerDashboard, renderSalesRepDashboard, renderSupportDashboard,
+  renderSuperAdminDashboard, renderSupportDashboard,
+  renderMarketerIntakePage, renderSalesLeadsBoard,
   drawLeadsPage, renderPipelineKanban, renderTasksPage, renderQuotationsPage, drawQuoteBuilderInner,
   renderCustomersPage, renderProductsPage, renderTicketsPage, drawTicketMessageThread, renderUsersPermissionsPage, renderSystemSettingsPage,
   renderReportsPage, renderInvoicesPage, renderSalesToolkitPage, renderMcnaFunnelPage, renderNotificationsPage, esc, fmtVND,
@@ -25,6 +26,14 @@ import {
 // overwrote existing rows once records were deleted or ids overlapped the seeds.
 function uid(prefix) {
   return `${prefix}-${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`;
+}
+
+// Simple login usernames (not real emails): letters/numbers/dot/underscore/dash, 3-24 chars.
+function isValidUsername(v) {
+  return /^[a-zA-Z0-9._-]{3,24}$/.test(String(v || '').trim());
+}
+function isValidEmail(v) {
+  return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(String(v || '').trim());
 }
 
 // === GLOBAL STATE ===
@@ -114,9 +123,10 @@ let EMAIL_TEMPLATES = [
 
 const PERMISSIONS = {
   superadmin: ['dashboard-superadmin', 'reports', 'leads', 'deals', 'pipeline', 'contacts', 'companies', 'products', 'quotes', 'invoices', 'tasks', 'activities', 'tickets', 'users', 'settings', 'profile', 'notifications', 'sales-toolkit', 'mcna-funnel', 'kpi-calls'],
-  // Marketers create leads but must not see quotes or the invoice ledger
-  manager: ['dashboard-manager', 'reports', 'leads', 'deals', 'pipeline', 'contacts', 'companies', 'tasks', 'activities', 'tickets', 'profile', 'notifications', 'sales-toolkit', 'mcna-funnel', 'kpi-calls'],
-  sales: ['dashboard-salesrep', 'leads', 'deals', 'pipeline', 'contacts', 'tasks', 'activities', 'quotes', 'products', 'invoices', 'tickets', 'profile', 'notifications', 'sales-toolkit', 'mcna-funnel', 'kpi-calls'],
+  // Marketers only do lead intake — everything else (reports/deals/pipeline/etc.) is Admin-only.
+  manager: ['leads', 'profile', 'notifications'],
+  // Sales only work their leads (call + one-tap status ticks) — no manual data entry modules.
+  sales: ['leads', 'profile', 'notifications'],
   // Support is restricted to the SLA ticket desk only
   support: ['dashboard-support', 'tickets', 'profile', 'notifications']
 };
@@ -193,18 +203,8 @@ export function go(pageId) {
 
 function renderEntryScreen() {
   const root = document.getElementById('app-root');
-  
-  if (CUR_PAGE === 'login') {
-    root.innerHTML = drawLoginScreen();
-    setupLoginEventHandlers();
-  } else if (CUR_PAGE === 'register') {
-    root.innerHTML = drawRegisterScreen(1);
-    setupRegisterEventHandlers(1);
-  } else if (CUR_PAGE === 'forgot') {
-    root.innerHTML = drawForgotScreen();
-    setupForgotEventHandlers();
-  }
-  document.getElementById('demo-role-switcher').style.display = 'block';
+  root.innerHTML = drawLoginScreen();
+  setupLoginEventHandlers();
 }
 
 function renderSidebar() {
@@ -254,46 +254,40 @@ function renderPageContent(pageId) {
       setupSuperAdminEvents();
     }, 50);
   } 
-  else if (pageId === 'dashboard-manager') {
-    mount.innerHTML = renderManagerDashboard();
-    setTimeout(() => {
-      const funnelData = [
-        { label: 'Leads phễu (1)', value: LEADS_DB.length },
-        { label: 'Qualify sâu (2)', value: LEADS_DB.filter(l=>l.status!=='new').length },
-        { label: 'Đề Xuất Hợp Đồng (3)', value: DEALS_DB.filter(d=>d.stage==='proposal').length },
-        { label: 'Đàm Phán Chốt (4)', value: DEALS_DB.filter(d=>d.stage==='negotiation').length },
-        { label: 'Won Chắc chắn (5)', value: DEALS_DB.filter(d=>d.stage==='closed_won').length }
-      ];
-      svgFunnel(funnelData, 'm-funnel-container');
-    }, 50);
-  } 
-  else if (pageId === 'dashboard-salesrep') {
-    mount.innerHTML = renderSalesRepDashboard();
-    setupSalesRepEvents();
-  } 
   else if (pageId === 'dashboard-support') {
     mount.innerHTML = renderSupportDashboard();
-  } 
+  }
   else if (pageId === 'leads') {
-    // Render Leads list with dynamic filter subsets
-    let data = LEADS_DB;
-    if (FILTER_STATE.leadType && FILTER_STATE.leadType !== 'all') {
-      data = data.filter(l => l.leadType === FILTER_STATE.leadType);
+    // Marketers and Sales get dedicated simplified views; Admin keeps the full CRM table.
+    if (SESSION?.role === 'manager') {
+      const myLeads = LEADS_DB.filter(l => l.createdBy === SESSION.id);
+      mount.innerHTML = renderMarketerIntakePage(myLeads, SESSION);
+      setupMarketerIntakeHandlers();
+    } else if (SESSION?.role === 'sales') {
+      const unclaimed = LEADS_DB.filter(l => !l.ownerId);
+      const mine = LEADS_DB.filter(l => l.ownerId === SESSION.id);
+      mount.innerHTML = renderSalesLeadsBoard(unclaimed, mine, SESSION);
+    } else {
+      // Render Leads list with dynamic filter subsets
+      let data = LEADS_DB;
+      if (FILTER_STATE.leadType && FILTER_STATE.leadType !== 'all') {
+        data = data.filter(l => l.leadType === FILTER_STATE.leadType);
+      }
+      if (FILTER_STATE.source !== 'all') {
+        data = data.filter(l => l.source === FILTER_STATE.source);
+      }
+      if (FILTER_STATE.priority !== 'all') {
+        data = data.filter(l => l.priority === FILTER_STATE.priority);
+      }
+      if (FILTER_STATE.search) {
+        const q = FILTER_STATE.search.toLowerCase();
+        data = data.filter(l => l.name.toLowerCase().includes(q) || l.company.toLowerCase().includes(q));
+      }
+
+      mount.innerHTML = drawLeadsPage(data, ACTIVE_TAB_STATE, FILTER_STATE, SESSION?.role);
+      setupLeadsEventHandlers();
     }
-    if (FILTER_STATE.source !== 'all') {
-      data = data.filter(l => l.source === FILTER_STATE.source);
-    }
-    if (FILTER_STATE.priority !== 'all') {
-      data = data.filter(l => l.priority === FILTER_STATE.priority);
-    }
-    if (FILTER_STATE.search) {
-      const q = FILTER_STATE.search.toLowerCase();
-      data = data.filter(l => l.name.toLowerCase().includes(q) || l.company.toLowerCase().includes(q));
-    }
-    
-    mount.innerHTML = drawLeadsPage(data, ACTIVE_TAB_STATE, FILTER_STATE, SESSION?.role);
-    setupLeadsEventHandlers();
-  } 
+  }
   else if (pageId === 'deals' || pageId === 'pipeline') {
     mount.innerHTML = renderPipelineKanban(DEALS_DB, DEALS_TAB_STATE);
     setupKanbanEventHandlers();
@@ -400,28 +394,28 @@ function setupLoginEventHandlers() {
   if (form) {
     form.addEventListener('submit', (e) => {
       e.preventDefault();
-      const email = document.getElementById('login-email').value;
+      const username = document.getElementById('login-email').value.trim();
       const pw = document.getElementById('login-pw').value;
-      
-      const user = USERS_DB.find(u => u.email === email && u.pw === pw);
+
+      const user = USERS_DB.find(u => u.email.toLowerCase() === username.toLowerCase() && u.pw === pw);
       if (user) {
         if (user.status !== 'active') {
-          toast('Tài khoản này đã bị Super Admin tạm khóa, liên hệ hỗ trợ!', 'error');
+          toast('Tài khoản này đã bị Admin tạm khóa, liên hệ Admin để mở lại!', 'error');
           return;
         }
         SESSION = user;
         toast(`Đăng nhập thành công! Chào đón ${user.name}`, 'success');
-        
+
         // Dynamic routing default layout
         const homeMap = {
           superadmin: 'dashboard-superadmin',
-          manager: 'dashboard-manager',
-          sales: 'dashboard-salesrep',
+          manager: 'leads',
+          sales: 'leads',
           support: 'dashboard-support'
         };
         go(homeMap[user.role] || 'profile');
       } else {
-        toast('Tên mật khẩu hoặc email không khớp trên hệ thống!', 'error');
+        toast('Tên đăng nhập hoặc mật khẩu không đúng!', 'error');
       }
     });
   }
@@ -433,89 +427,6 @@ function setupLoginEventHandlers() {
     } else {
       input.type = 'password';
     }
-  });
-
-  document.getElementById('go-register-btn')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    CUR_PAGE = 'register';
-    renderEntryScreen();
-  });
-
-  document.getElementById('go-forgot-btn')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    CUR_PAGE = 'forgot';
-    renderEntryScreen();
-  });
-}
-
-function setupRegisterEventHandlers(step) {
-  const form = document.getElementById('register-step-form');
-  if (form) {
-    form.addEventListener('submit', (e) => {
-      e.preventDefault();
-      if (step < 3) {
-        const nextStep = step + 1;
-        document.getElementById('app-root').innerHTML = drawRegisterScreen(nextStep);
-        setupRegisterEventHandlers(nextStep);
-      } else {
-        toast('Đăng ký tài khoản doanh nghiệp thành công, đã tự động chuyển đổi vai trò!', 'success');
-        SESSION = USERS_DB[2]; // Default login onto sales Representative Triều
-        go('dashboard-salesrep');
-      }
-    });
-  }
-
-  document.getElementById('reg-back-btn')?.addEventListener('click', () => {
-    const prev = step - 1;
-    document.getElementById('app-root').innerHTML = drawRegisterScreen(prev);
-    setupRegisterEventHandlers(prev);
-  });
-
-  document.getElementById('go-login-btn')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    CUR_PAGE = 'login';
-    renderEntryScreen();
-  });
-
-  if (step === 2) {
-    const pwInput = document.getElementById('reg-pw');
-    pwInput?.addEventListener('input', () => {
-      const val = pwInput.value;
-      let score = 0;
-      if (val.length >= 8) { score++; document.getElementById('pwc-8').classList.add('ok'); } else document.getElementById('pwc-8').classList.remove('ok');
-      if (/[A-Z]/.test(val)) { score++; document.getElementById('pwc-up').classList.add('ok'); } else document.getElementById('pwc-up').classList.remove('ok');
-      if (/[0-9]/.test(val)) { score++; document.getElementById('pwc-num').classList.add('ok'); } else document.getElementById('pwc-num').classList.remove('ok');
-      if (/[!@#$%^&*]/.test(val)) { score++; document.getElementById('pwc-sp').classList.add('ok'); } else document.getElementById('pwc-sp').classList.remove('ok');
-
-      const bar1 = document.getElementById('psb-1');
-      const bar2 = document.getElementById('psb-2');
-      const bar3 = document.getElementById('psb-3');
-      const bar4 = document.getElementById('psb-4');
-      const msg = document.getElementById('reg-pw-strength-msg');
-
-      bar1.style.backgroundColor = bar2.style.backgroundColor = bar3.style.backgroundColor = bar4.style.backgroundColor = 'var(--n200)';
-
-      if (score === 1) { bar1.style.backgroundColor = 'var(--red)'; msg.innerText = 'Mật khẩu Yếu ❌'; }
-      else if (score === 2) { bar1.style.backgroundColor = 'var(--amber)'; bar2.style.backgroundColor = 'var(--amber)'; msg.innerText = 'Mật khẩu Tạm ổn ⚡'; }
-      else if (score === 3) { bar1.style.backgroundColor = 'var(--b500)'; bar2.style.backgroundColor = 'var(--b500)'; bar3.style.backgroundColor = 'var(--b500)'; msg.innerText = 'Mật khẩu Mạnh tốt ✨'; }
-      else if (score === 4) { bar1.style.backgroundColor = 'var(--green)'; bar2.style.backgroundColor = 'var(--green)'; bar3.style.backgroundColor = 'var(--green)'; bar4.style.backgroundColor = 'var(--green)'; msg.innerText = 'Độ mật an toàn tối mật cao ✓'; }
-    });
-  }
-}
-
-function setupForgotEventHandlers() {
-  document.getElementById('forgot-form')?.addEventListener('submit', (e) => {
-    e.preventDefault();
-    const mail = document.getElementById('forgot-email').value;
-    toast(`Mã khôi phục OTP đã gửi thành công đến hòm thư ${mail}`, 'success');
-    CUR_PAGE = 'login';
-    renderEntryScreen();
-  });
-
-  document.getElementById('go-login-btn')?.addEventListener('click', (e) => {
-    e.preventDefault();
-    CUR_PAGE = 'login';
-    renderEntryScreen();
   });
 }
 
@@ -711,6 +622,7 @@ export function closeActiveModal() {
 
 // Leads creation popup modal
 function openNewLeadModalForm() {
+  const isMarketer = SESSION.role === 'manager';
   const formHtml = `
     <div class="auth-body">
       <div class="fr2">
@@ -751,6 +663,11 @@ function openNewLeadModalForm() {
           </select>
         </div>
       </div>
+      ${isMarketer ? `
+      <input type="hidden" id="m-lead-priority" value="warm" />
+      <input type="hidden" id="m-lead-val" value="0" />
+      <input type="hidden" id="m-lead-owner" value="" />
+      ` : `
       <div class="fr2">
         <div class="fg">
           <label>Độ nóng khẩn cấp (Priority)</label>
@@ -769,16 +686,17 @@ function openNewLeadModalForm() {
         <div class="fg">
           <label>Phân Sales phụ trách</label>
           <select id="m-lead-owner">
-            <option value="" ${(SESSION.role === 'manager' || SESSION.role === 'superadmin') ? 'selected' : ''}>⏳ Chưa phân — To be updated (Sales Manager chia sau)</option>
+            <option value="" ${SESSION.role === 'superadmin' ? 'selected' : ''}>⏳ Chưa phân — Sales sẽ tự nhận khi gọi điện</option>
             ${USERS_DB.filter(u => u.role === 'sales' && u.status === 'active').map(u => `
               <option value="${u.id}" ${u.id === SESSION.id ? 'selected' : ''}>${esc(u.name)} (SALES)</option>
             `).join('')}
           </select>
         </div>
-        <div class="fg">
-          <label>Ghi chú ban đầu (Notes)</label>
-          <input type="text" id="m-lead-notes" placeholder="Ghi chú về nhu cầu, tiến độ tiếp cận..." />
-        </div>
+      </div>
+      `}
+      <div class="fg">
+        <label>Ghi chú ban đầu (không bắt buộc)</label>
+        <input type="text" id="m-lead-notes" placeholder="Ghi chú về nhu cầu, tiến độ tiếp cận..." />
       </div>
     </div>
   `;
@@ -862,8 +780,8 @@ function openNewLeadModalForm() {
     closeActiveModal();
 
     if (isUnassigned) {
-      writeAuditLog(`Marketer tổng hợp Lead "${name}" - để TRẠNG THÁI "To be updated" chờ Sales Manager chia`, 'Leads Collection');
-      toast('📥 Đã tổng hợp Lead mới ở trạng thái "To be updated". Sales Manager sẽ lọc & chia cho Sales.', 'info');
+      writeAuditLog(`Tiếp nhận Lead mới "${name}" - chờ Sales gọi điện & tự nhận xử lý`, 'Leads Collection');
+      toast('📥 Đã tiếp nhận Lead mới! Sales sẽ thấy và gọi điện cho khách trong danh sách "Lead mới chờ xử lý".', 'success');
       if (CUR_PAGE === 'leads') renderPageContent('leads');
       return;
     }
@@ -1808,6 +1726,12 @@ function setupLeadsEventHandlers() {
   }, 250));
 }
 
+function setupMarketerIntakeHandlers() {
+  document.getElementById('marketer-add-lead-btn')?.addEventListener('click', () => {
+    openNewLeadModalForm();
+  });
+}
+
 function setupKanbanEventHandlers() {
   document.getElementById('deals-tab-kanban-btn')?.addEventListener('click', () => {
     DEALS_TAB_STATE = 'kanban';
@@ -2340,12 +2264,12 @@ export function openUserEditModal(usrId) {
         </div>
       </div>
       <div class="fr2">
-        <div class="fg"><label>Email đăng nhập *</label><input type="email" id="ue-email" value="${esc(u.email)}" /></div>
+        <div class="fg"><label>Tên đăng nhập *</label><input type="text" id="ue-email" value="${esc(u.email)}" /></div>
         <div class="fg"><label>Số điện thoại</label><input type="tel" id="ue-phone" value="${esc(u.phone || '')}" /></div>
       </div>
       <div class="fr2">
         <div class="fg"><label>Phòng ban / Bộ phận</label><input type="text" id="ue-dept" value="${esc(u.dept || '')}" /></div>
-        <div class="fg"><label>Email nhận thông báo (giao việc)</label><input type="email" id="ue-notify" value="${esc(u.notifyEmail || u.email || '')}" /></div>
+        <div class="fg"><label>Email nhận thông báo (không bắt buộc)</label><input type="email" id="ue-notify" value="${esc(u.notifyEmail || '')}" /></div>
       </div>
       <div class="fg" id="ue-kpi-wrap" style="${u.role === 'sales' ? '' : 'display:none;'}">
         <label>Chỉ tiêu cuộc gọi/ngày (Sales)</label>
@@ -2377,10 +2301,10 @@ export function submitUserEdit(usrId) {
   const kpi = parseInt(document.getElementById('ue-kpi')?.value, 10) || 100;
 
   if (name.split(/\s+/).length < 2) { toast('Vui lòng nhập đầy đủ HỌ VÀ TÊN!', 'error'); return; }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast('Email đăng nhập không hợp lệ!', 'error'); return; }
-  if (notify && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(notify)) { toast('Email nhận thông báo không hợp lệ!', 'error'); return; }
+  if (!isValidUsername(email)) { toast('Tên đăng nhập không hợp lệ! Chỉ dùng chữ, số, dấu chấm/gạch dưới, 3-24 ký tự.', 'error'); return; }
+  if (notify && !isValidEmail(notify)) { toast('Email nhận thông báo không hợp lệ!', 'error'); return; }
   if (USERS_DB.some(x => x.id !== usrId && x.email.toLowerCase() === email.toLowerCase())) {
-    toast(`Email "${email}" đã thuộc về tài khoản khác!`, 'error'); return;
+    toast(`Tên đăng nhập "${email}" đã thuộc về tài khoản khác!`, 'error'); return;
   }
 
   const words = name.split(/\s+/);
@@ -2410,13 +2334,19 @@ export async function resetUserPassword(usrId) {
   if (!np.trim() || np.trim().length < 6) { toast('Mật khẩu phải từ 6 ký tự trở lên!', 'error'); return; }
   u.pw = np.trim();
   writeAuditLog(`Đặt lại mật khẩu cho tài khoản ${u.name} <${u.email}>`, 'Users');
+
+  const toEmail = u.notifyEmail;
+  if (!toEmail) {
+    toast(`🔑 Đã đặt lại mật khẩu cho ${u.name}: "${u.pw}" — hãy báo trực tiếp cho nhân viên (chưa có email nhận thông báo).`, 'success', 8000);
+    if (CUR_PAGE === 'users') renderPageContent('users');
+    return;
+  }
   toast(`🔑 Đã đặt lại mật khẩu cho ${u.name}. Đang gửi email thông báo…`, 'success');
 
-  const toEmail = u.notifyEmail || u.email;
   const mail = {
     id: uid('mail'), toEmail, toName: u.name,
     subject: `🔑 [MCNA CRM] Mật khẩu tài khoản của bạn đã được đặt lại`,
-    body: `Chào ${u.name},\n\nAdmin ${SESSION.name} vừa đặt lại mật khẩu cho tài khoản MCNA CRM của bạn.\n\n• Email đăng nhập: ${u.email}\n• Mật khẩu mới: ${u.pw}\n\nĐăng nhập tại: ${typeof location !== 'undefined' ? location.origin : ''}\nVui lòng đổi mật khẩu sau khi đăng nhập.\n\n— MCNA CRM (email tự động)`,
+    body: `Chào ${u.name},\n\nAdmin ${SESSION.name} vừa đặt lại mật khẩu cho tài khoản MCNA CRM của bạn.\n\n• Tên đăng nhập: ${u.email}\n• Mật khẩu mới: ${u.pw}\n\nĐăng nhập tại: ${typeof location !== 'undefined' ? location.origin : ''}\nVui lòng đổi mật khẩu sau khi đăng nhập.\n\n— MCNA CRM (email tự động)`,
     relatedType: 'password_reset', relatedId: u.id,
     status: 'pending', error: '', createdAt: nowVN(), sentAt: ''
   };
@@ -2492,49 +2422,12 @@ function debounce(fn, ms) {
   };
 }
 
-// Global quick floating switch event hookups
-function setupFloatingRoleSwitcher() {
-  document.querySelectorAll('.switcher-grid .sw-btn').forEach(btn => {
-    btn.addEventListener('click', () => {
-      const targetRole = btn.getAttribute('data-role');
-      const mockAccounts = {
-        superadmin: USERS_DB[0],
-        manager: USERS_DB[1],
-        sales: USERS_DB[2],
-        support: USERS_DB[3]
-      };
-      
-      SESSION = mockAccounts[targetRole];
-      toast(`Mô phỏng: Đóng vai tài lựu ${SESSION.name}`, 'info');
-      
-      const homeMap = {
-        superadmin: 'dashboard-superadmin',
-        manager: 'dashboard-manager',
-        sales: 'dashboard-salesrep',
-        support: 'dashboard-support'
-      };
-      go(homeMap[targetRole]);
-    });
-  });
-}
-
 function setupSuperAdminEvents() {
   document.getElementById('sa-export-sc-data')?.addEventListener('click', () => {
     toast('Đang nén kết xuất dữ liệu nợ và quan hệ...', 'info');
     setTimeout(() => {
       toast('Trích xuất thành công tập tin DB backup (Enterprise_CRM_Backup.json)!', 'success');
     }, 1400);
-  });
-}
-
-function setupSalesRepEvents() {
-  // Bind simple checklist events directly inside rep container area
-  const checklist = document.getElementById('salesrep-task-checklist-inject');
-  checklist?.querySelectorAll('.chk-input').forEach(box => {
-    box.addEventListener('change', (e) => {
-      const taskId = e.target.closest('.chk-item').getAttribute('data-task-id');
-      toggleTaskCompletion(taskId);
-    });
   });
 }
 
@@ -2643,10 +2536,12 @@ window.crmApp = {
             <label>Trạng thái xử lý phễu</label>
             <select id="m-edit-status">
               <option value="new" ${l.status==='new'?'selected':''}>Mới nhận (New)</option>
-              <option value="contacting" ${l.status==='contacting'?'selected':''}>Đang xử lý (Contacting)</option>
+              <option value="contacting" ${l.status==='contacting'?'selected':''}>Đã tiếp cận (Contacting)</option>
               <option value="qualified" ${l.status==='qualified'?'selected':''}>Đủ điều kiện (Qualified)</option>
-              <option value="proposal" ${l.status==='proposal'?'selected':''}>Gửi báo giá (Proposal)</option>
-              <option value="lost" ${l.status==='lost'?'selected':''}>Thất bại (Lost)</option>
+              <option value="proposal" ${l.status==='proposal'?'selected':''}>Đã báo giá (Proposal)</option>
+              <option value="awaiting_payment" ${l.status==='awaiting_payment'?'selected':''}>Đợi khách chuyển khoản</option>
+              <option value="paid" ${l.status==='paid'?'selected':''}>Đã chuyển khoản (Thành công)</option>
+              <option value="lost" ${l.status==='lost'?'selected':''}>Không mua / Thất bại (Lost)</option>
             </select>
           </div>
         </div>
@@ -4896,6 +4791,12 @@ export function openCallSession(targetType, targetId) {
     : CONTACTS_DB.find(x => x.id === targetId);
   if (!target) { toast('Không tìm thấy khách hàng/lead để gọi!', 'error'); return; }
 
+  // Sales rep dialing an unclaimed lead auto-claims it — "gọi điện" IS the claim action.
+  if (targetType === 'lead' && SESSION.role === 'sales' && !target.ownerId) {
+    target.ownerId = SESSION.id;
+    writeAuditLog(`Sales ${SESSION.name} nhận xử lý Lead "${target.name}" (qua gọi điện)`, 'Leads');
+  }
+
   const name = target.name || target.fullName;
   const phone = target.phone || '';
 
@@ -5163,7 +5064,7 @@ export function openCreateUserModal() {
         </div>
       </div>
       <div class="fr2">
-        <div class="fg"><label>Email đăng nhập *</label><input type="email" id="cu-email" placeholder="ten.nhanvien@mcna.vn" /></div>
+        <div class="fg"><label>Tên đăng nhập *</label><input type="text" id="cu-email" placeholder="Ví dụ: sale1" /></div>
         <div class="fg"><label>Số điện thoại</label><input type="tel" id="cu-phone" placeholder="0901234567" /></div>
       </div>
       <div class="fr2">
@@ -5179,8 +5080,12 @@ export function openCreateUserModal() {
         <label>Chỉ tiêu cuộc gọi/ngày (Sales)</label>
         <input type="number" id="cu-kpi" value="100" />
       </div>
+      <div class="fg">
+        <label>Email nhận thông báo (không bắt buộc)</label>
+        <input type="email" id="cu-notify" placeholder="ten.nhanvien@gmail.com" />
+      </div>
       <div class="panel" style="background:#eff6ff; border:1px solid #bfdbfe; padding:10px; border-radius:8px;">
-        <p style="font-size:11.5px; color:#1d4ed8; margin:0;"><i class="fa-solid fa-paper-plane"></i> Tài khoản Sales sẽ nhận <strong>email kèm thông tin đăng nhập</strong> ngay sau khi tạo (gửi tới đúng email đăng nhập ở trên).</p>
+        <p style="font-size:11.5px; color:#1d4ed8; margin:0;"><i class="fa-solid fa-paper-plane"></i> Nếu điền email nhận thông báo, hệ thống sẽ gửi kèm tên đăng nhập & mật khẩu tới email đó. Nếu bỏ trống, bạn cần tự đọc mật khẩu bên dưới và báo trực tiếp cho nhân viên.</p>
       </div>
     </div>
   `;
@@ -5201,17 +5106,19 @@ export async function submitCreateUser() {
   if (!SESSION || SESSION.role !== 'superadmin') return;
   const name = (document.getElementById('cu-name').value || '').trim();
   const role = document.getElementById('cu-role').value;
-  const email = (document.getElementById('cu-email').value || '').trim();
+  const username = (document.getElementById('cu-email').value || '').trim();
   const phone = (document.getElementById('cu-phone').value || '').trim();
   const dept = (document.getElementById('cu-dept').value || '').trim();
   const pw = (document.getElementById('cu-pw').value || '').trim();
   const kpi = parseInt(document.getElementById('cu-kpi')?.value, 10) || 100;
+  const notify = (document.getElementById('cu-notify')?.value || '').trim();
 
   if (name.trim().split(/\s+/).length < 2) { toast('Vui lòng nhập đầy đủ HỌ VÀ TÊN!', 'error'); return; }
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) { toast('Email đăng nhập không hợp lệ!', 'error'); return; }
-  if (!pw) { toast('Vui lòng nhập mật khẩu khởi tạo!', 'error'); return; }
-  if (USERS_DB.some(u => u.email.toLowerCase() === email.toLowerCase())) {
-    toast(`Email "${email}" đã tồn tại trên hệ thống!`, 'error');
+  if (!isValidUsername(username)) { toast('Tên đăng nhập không hợp lệ! Chỉ dùng chữ, số, dấu chấm/gạch dưới, 3-24 ký tự.', 'error'); return; }
+  if (!pw || pw.length < 6) { toast('Mật khẩu phải từ 6 ký tự trở lên!', 'error'); return; }
+  if (notify && !isValidEmail(notify)) { toast('Email nhận thông báo không hợp lệ!', 'error'); return; }
+  if (USERS_DB.some(u => u.email.toLowerCase() === username.toLowerCase())) {
+    toast(`Tên đăng nhập "${username}" đã tồn tại trên hệ thống!`, 'error');
     return;
   }
 
@@ -5219,7 +5126,7 @@ export async function submitCreateUser() {
   const initials = ((words[0][0] || '') + (words[words.length - 1][0] || '')).toUpperCase();
   const newUser = {
     id: uid('usr'),
-    email,
+    email: username,
     pw,
     name,
     role,
@@ -5233,22 +5140,28 @@ export async function submitCreateUser() {
     target: role === 'sales' ? 800000000 : 1500000000,
     dealsWon: 0,
     revenue: 0,
-    notifyEmail: email,
+    notifyEmail: notify,
     kpiDailyCalls: role === 'sales' ? kpi : undefined
   };
   USERS_DB.unshift(newUser);
-  writeAuditLog(`Admin tạo tài khoản ${role === 'sales' ? 'Sales' : 'Marketers'}: ${name} <${email}>`, 'Users');
-
+  writeAuditLog(`Admin tạo tài khoản ${role === 'sales' ? 'Sales' : 'Marketers'}: ${name} <${username}>`, 'Users');
   closeActiveModal();
+
+  if (!notify) {
+    toast(`✅ Đã tạo tài khoản cho ${name}. Đăng nhập: "${username}" / mật khẩu: "${pw}" — hãy báo trực tiếp cho nhân viên.`, 'success', 8000);
+    if (CUR_PAGE === 'users') renderPageContent('users');
+    return;
+  }
+
   toast(`✅ Đã tạo tài khoản ${role === 'sales' ? 'Sales' : 'Marketers'} cho ${name}. Đang gửi email đăng nhập…`, 'success');
   if (CUR_PAGE === 'users') renderPageContent('users');
 
-  // Welcome email with login credentials (sent to the new account's email)
+  // Welcome email with login credentials (sent to the optional notify email)
   const mail = {
     id: uid('mail'),
-    toEmail: email, toName: name,
+    toEmail: notify, toName: name,
     subject: `🎉 [MCNA CRM] Tài khoản ${role === 'sales' ? 'Sales' : 'Marketers'} của bạn đã được tạo`,
-    body: `Chào ${name},\n\nAdmin ${SESSION.name} vừa khởi tạo tài khoản ${role === 'sales' ? 'Sales Rep' : 'Marketers'} cho bạn trên hệ thống MCNA CRM.\n\nThông tin đăng nhập:\n• Email: ${email}\n• Mật khẩu: ${pw}\n• Vai trò: ${role === 'sales' ? 'Sales Rep' : 'Marketers'}\n${role === 'sales' ? `• Chỉ tiêu cuộc gọi/ngày: ${kpi}\n` : ''}\nĐăng nhập tại: ${typeof location !== 'undefined' ? location.origin : ''}\nVui lòng đổi mật khẩu sau lần đăng nhập đầu tiên.\n\n— MCNA CRM (email tự động, không trả lời thư này)`,
+    body: `Chào ${name},\n\nAdmin ${SESSION.name} vừa khởi tạo tài khoản ${role === 'sales' ? 'Sales Rep' : 'Marketers'} cho bạn trên hệ thống MCNA CRM.\n\nThông tin đăng nhập:\n• Tên đăng nhập: ${username}\n• Mật khẩu: ${pw}\n• Vai trò: ${role === 'sales' ? 'Sales Rep' : 'Marketers'}\n${role === 'sales' ? `• Chỉ tiêu cuộc gọi/ngày: ${kpi}\n` : ''}\nĐăng nhập tại: ${typeof location !== 'undefined' ? location.origin : ''}\nVui lòng đổi mật khẩu sau lần đăng nhập đầu tiên.\n\n— MCNA CRM (email tự động, không trả lời thư này)`,
     relatedType: 'account_created', relatedId: newUser.id,
     status: 'pending', error: '', createdAt: nowVN(), sentAt: ''
   };
@@ -5257,15 +5170,15 @@ export async function submitCreateUser() {
     const res = await fetch('/api/notify', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ to: email, toName: name, subject: mail.subject, text: mail.body })
+      body: JSON.stringify({ to: notify, toName: name, subject: mail.subject, text: mail.body })
     });
     const out = await res.json().catch(() => ({}));
     if (res.ok && out.sent) {
       mail.status = 'sent'; mail.sentAt = nowVN();
-      toast(`📨 Đã gửi email đăng nhập tới ${name} <${email}>`, 'success');
+      toast(`📨 Đã gửi email đăng nhập tới ${name} <${notify}>`, 'success');
     } else if (out.reason === 'smtp_not_configured') {
       mail.status = 'skipped'; mail.error = 'Máy chủ chưa cấu hình SMTP';
-      toast('📭 Email đăng nhập vào hàng đợi (chưa cấu hình SMTP).', 'warning');
+      toast(`📭 Email chưa gửi được (chưa cấu hình SMTP). Đăng nhập: "${username}" / mật khẩu: "${pw}"`, 'warning', 8000);
     } else {
       mail.status = 'failed'; mail.error = out.error || `HTTP ${res.status}`;
       toast(`⚠️ Gửi email đăng nhập thất bại: ${mail.error}`, 'error');
@@ -5273,7 +5186,7 @@ export async function submitCreateUser() {
   } catch (e) {
     mail.status = 'failed'; mail.error = String(e?.message || e);
   }
-  writeAuditLog(`Email cấp tài khoản tới ${name} <${email}> [${mail.status}]`, 'Email Outbox', mail.status === 'failed' ? 'bi_chan' : 'thanh_cong');
+  writeAuditLog(`Email cấp tài khoản tới ${name} <${notify}> [${mail.status}]`, 'Email Outbox', mail.status === 'failed' ? 'bi_chan' : 'thanh_cong');
 }
 
 // ---- Sales Manager: filter & distribute unassigned ("to be updated") leads ----
@@ -5542,10 +5455,30 @@ export function launchCallFromPicker() {
   openCallSession(type, id);
 }
 
+// One-tap sales status ticks — no forms, no manual data entry.
+const TICK_LABELS = {
+  proposal: 'Đã báo giá',
+  awaiting_payment: 'Đợi khách chuyển khoản',
+  paid: 'Khách đã chuyển khoản thành công',
+  lost: 'Không mua / từ chối',
+  new: 'Mở lại xử lý'
+};
+export function tickLeadStatus(leadId, newStatus) {
+  if (!SESSION || SESSION.role !== 'sales') return;
+  const lead = LEADS_DB.find(l => l.id === leadId);
+  if (!lead) return;
+  if (lead.ownerId !== SESSION.id) { toast('Bạn không phụ trách Lead này!', 'error'); return; }
+  const prevStatus = lead.status;
+  lead.status = newStatus;
+  writeAuditLog(`Sales ${SESSION.name} cập nhật Lead "${lead.name}" [${prevStatus} → ${newStatus}]`, 'Leads');
+  toast(`✅ Đã cập nhật: ${TICK_LABELS[newStatus] || newStatus}`, 'success');
+  if (CUR_PAGE === 'leads') renderPageContent('leads');
+}
+
 // Expose pipeline & KPI methods for inline handlers
 Object.assign(window.crmApp || (window.crmApp = {}), {
   openCallSession, beginDial, onReachChange, cancelCallSession, submitCallOutcome,
-  editRepNotifyEmail, editRepKpiTarget, launchCallFromPicker,
+  editRepNotifyEmail, editRepKpiTarget, launchCallFromPicker, tickLeadStatus,
   revealSecuredField, sendMarketerEmail, openAssignLeadModal, confirmAssignLead,
   openCreateUserModal, submitCreateUser,
   openUserEditModal, submitUserEdit, resetUserPassword, deleteStaffUser
@@ -5575,7 +5508,6 @@ async function init() {
   CUR_PAGE = 'login';
   renderEntryScreen();
 
-  setupFloatingRoleSwitcher();
   setupEventDelegation();
   setupMcnaFunnelEvents();
 
