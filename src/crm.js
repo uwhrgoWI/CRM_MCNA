@@ -762,7 +762,7 @@ function openNewLeadModalForm() {
       phone,
       email,
       source: document.getElementById('m-lead-source').value,
-      status: isUnassigned ? 'to_be_updated' : 'new',
+      status: 'new',
       value: val,
       ownerId: ownerId || '',
       createdBy: SESSION.id,
@@ -4895,6 +4895,8 @@ export function cancelCallSession() {
   clearInterval(CALL_TICKER);
   ACTIVE_CALL = null;
   closeActiveModal();
+  // The lead may already be auto-claimed (openCallSession claims on open, before dialing).
+  if (CUR_PAGE === 'leads') renderPageContent('leads');
 }
 
 export function submitCallOutcome() {
@@ -4975,7 +4977,7 @@ export function submitCallOutcome() {
   clearInterval(CALL_TICKER);
   ACTIVE_CALL = null;
   closeActiveModal();
-  if (CUR_PAGE === 'kpi-calls') renderPageContent('kpi-calls');
+  if (CUR_PAGE === 'kpi-calls' || CUR_PAGE === 'leads') renderPageContent(CUR_PAGE);
 }
 
 // ---- Privacy vault: controlled reveal of masked customer channels ----
@@ -5475,10 +5477,20 @@ export function tickLeadStatus(leadId, newStatus) {
   if (CUR_PAGE === 'leads') renderPageContent('leads');
 }
 
+const PRIORITY_CYCLE = { hot: 'warm', warm: 'cold', cold: 'hot' };
+export function cycleLeadPriority(leadId) {
+  if (!SESSION || SESSION.role !== 'sales') return;
+  const lead = LEADS_DB.find(l => l.id === leadId);
+  if (!lead) return;
+  if (lead.ownerId !== SESSION.id) { toast('Bạn không phụ trách Lead này!', 'error'); return; }
+  lead.priority = PRIORITY_CYCLE[lead.priority] || 'warm';
+  if (CUR_PAGE === 'leads') renderPageContent('leads');
+}
+
 // Expose pipeline & KPI methods for inline handlers
 Object.assign(window.crmApp || (window.crmApp = {}), {
   openCallSession, beginDial, onReachChange, cancelCallSession, submitCallOutcome,
-  editRepNotifyEmail, editRepKpiTarget, launchCallFromPicker, tickLeadStatus,
+  editRepNotifyEmail, editRepKpiTarget, launchCallFromPicker, tickLeadStatus, cycleLeadPriority,
   revealSecuredField, sendMarketerEmail, openAssignLeadModal, confirmAssignLead,
   openCreateUserModal, submitCreateUser,
   openUserEditModal, submitUserEdit, resetUserPassword, deleteStaffUser

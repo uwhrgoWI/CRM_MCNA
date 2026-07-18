@@ -625,12 +625,26 @@ export function renderMarketerIntakePage(myLeads, session) {
 }
 
 // ---- Sales: no manual data entry — claim via call, then one-tap status ticks ----
+const LEAD_PRIORITY_META = {
+  hot: { label: '🔥 Hot', next: 'warm' },
+  warm: { label: '⚡ Warm', next: 'cold' },
+  cold: { label: '❄️ Cold', next: 'hot' }
+};
+const LEAD_KANBAN_STAGES = [
+  { id: 'new', label: '🆕 Cần Gọi', color: 'var(--b400)' },
+  { id: 'contacting', label: '📞 Đã Tiếp Cận', color: 'var(--p500)' },
+  { id: 'proposal', label: '💵 Đã Báo Giá', color: 'var(--amber)' },
+  { id: 'awaiting_payment', label: '⏳ Đợi Chuyển Khoản', color: 'var(--teal)' },
+  { id: 'paid', label: '✅ Đã Chuyển Khoản', color: 'var(--green)' }
+];
+const LEAD_NEXT_STAGE = { contacting: 'proposal', proposal: 'awaiting_payment', awaiting_payment: 'paid' };
+
 export function renderSalesLeadsBoard(unclaimed, mine, session) {
   const isB2C = (l) => l.leadType === 'b2c';
 
   const renderContact = (l) => isB2C(l)
-    ? `<span style="font-family:var(--fm); font-size:11.5px;"><i class="fa-solid fa-phone"></i> ${maskPhone(l.phone)}</span>`
-    : `<span style="font-family:var(--fm); font-size:11.5px;"><i class="fa-solid fa-phone"></i> ${esc(l.phone)}</span>`;
+    ? `<span style="font-family:var(--fm); font-size:11px;"><i class="fa-solid fa-phone"></i> ${maskPhone(l.phone)}</span>`
+    : `<span style="font-family:var(--fm); font-size:11px;"><i class="fa-solid fa-phone"></i> ${esc(l.phone)}</span>`;
 
   const unclaimedCards = unclaimed.length === 0 ? `
     <div class="empty"><div class="empty-ico"><i class="fa-solid fa-inbox"></i></div><p class="empty-msg">Không có Lead mới đang chờ</p></div>
@@ -644,54 +658,81 @@ export function renderSalesLeadsBoard(unclaimed, mine, session) {
     </div>
   `).join('');
 
-  const STATUS_ACTIONS = {
-    new: [{ to: 'lost', label: '❌ Không mua', cls: 'rd' }],
-    contacting: [{ to: 'proposal', label: '💵 Đã báo giá', cls: 'gr' }, { to: 'lost', label: '❌ Không mua', cls: 'rd' }],
-    proposal: [{ to: 'awaiting_payment', label: '⏳ Đợi khách chuyển khoản', cls: 'am' }, { to: 'lost', label: '❌ Không mua', cls: 'rd' }],
-    awaiting_payment: [{ to: 'paid', label: '✅ Khách đã chuyển khoản', cls: 'gr' }, { to: 'lost', label: '❌ Không mua', cls: 'rd' }],
-    paid: [],
-    lost: [{ to: 'new', label: '↺ Mở lại xử lý', cls: 'bl' }]
-  };
-  const STATUS_BADGE = {
-    new: '🆕 Chưa gọi', contacting: '📞 Mới tiếp cận', proposal: '💵 Đã báo giá',
-    awaiting_payment: '⏳ Đợi chuyển khoản', paid: '✅ Đã chuyển khoản (Thành công)', lost: '❌ Không mua'
-  };
+  // Kanban board of the rep's own pipeline — visual columns instead of a flat list,
+  // with a clickable hot/warm/cold tag on every card (like a normal CRM deal board).
+  let boardHtml = '';
+  LEAD_KANBAN_STAGES.forEach(stg => {
+    const stgLeads = mine.filter(l => l.status === stg.id);
+    const cardsHtml = stgLeads.map(l => {
+      const pr = LEAD_PRIORITY_META[l.priority] ? l.priority : 'warm';
+      const lastCall = CALL_LOGS_DB.find(c => c.targetType === 'lead' && c.targetId === l.id);
+      const lastCallFailed = stg.id === 'new' && lastCall && !lastCall.reached;
+      const nextStage = LEAD_NEXT_STAGE[stg.id];
+      const nextLabel = nextStage ? LEAD_KANBAN_STAGES.find(s => s.id === nextStage).label : null;
+      return `
+        <div class="deal-card ${pr}">
+          <div class="deal-card-header">
+            <span class="deal-card-name">${esc(l.name)} ${isB2C(l) ? '👤' : '🏢'}</span>
+            <button class="chip gy" style="font-size:9px; border:none; cursor:pointer;" title="Bấm để đổi độ ưu tiên" onclick="window.crmApp.cycleLeadPriority('${l.id}')">${LEAD_PRIORITY_META[pr].label}</button>
+          </div>
+          <div style="font-size:11px; color:var(--n500);">${esc(l.company)}</div>
+          <div style="margin-top:3px;">${renderContact(l)}</div>
+          ${lastCallFailed ? `<div style="margin-top:4px; font-size:10px; color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> Chưa tiếp cận được: ${esc(lastCall.failReason)}</div>` : ''}
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; gap:4px;">
+            ${stg.id !== 'paid' ? `<button class="btn rd icon-only xs" title="Không mua" onclick="window.crmApp.tickLeadStatus('${l.id}','lost')" style="padding:3px 7px;"><i class="fa-solid fa-xmark"></i></button>` : '<span></span>'}
+            ${stg.id === 'new'
+              ? `<button class="btn pr xs" onclick="window.crmApp.openCallSession('lead', '${l.id}')" style="font-size:10.5px;"><i class="fa-solid fa-phone-volume"></i> Gọi điện</button>`
+              : nextStage
+                ? `<button class="btn bl xs" onclick="window.crmApp.tickLeadStatus('${l.id}','${nextStage}')" style="font-size:10.5px;">${nextLabel} <i class="fa-solid fa-chevron-right"></i></button>`
+                : `<span class="chip gr" style="font-size:10px;">🎉 Thành công</span>`}
+          </div>
+        </div>
+      `;
+    }).join('');
 
-  const mineCards = mine.length === 0 ? `
-    <div class="empty"><div class="empty-ico"><i class="fa-solid fa-user-check"></i></div><p class="empty-msg">Bạn chưa nhận Lead nào</p><p class="empty-sub">Nhận Lead từ danh sách "Lead mới chờ xử lý" phía trên.</p></div>
-  ` : mine.map(l => {
-    const actions = STATUS_ACTIONS[l.status] || [];
-    const needsCall = l.status === 'new';
-    const lastCall = CALL_LOGS_DB.find(c => c.targetType === 'lead' && c.targetId === l.id);
-    const lastCallFailed = needsCall && lastCall && !lastCall.reached;
-    return `
-    <div class="panel" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; border-left:4px solid ${l.status === 'paid' ? 'var(--green)' : l.status === 'lost' ? 'var(--n300)' : 'var(--amber)'};">
-      <div>
-        <div style="font-weight:700; font-size:13.5px;">${esc(l.name)} ${isB2C(l) ? '<span class="chip pu" style="font-size:9px;">B2C</span>' : '<span class="chip bl" style="font-size:9px;">B2B</span>'}</div>
-        <div style="font-size:11.5px; color:var(--n500); margin-top:2px;">${esc(l.company)} &middot; ${renderContact(l)}</div>
-        <div style="margin-top:6px;"><span class="chip gy font-bold">${STATUS_BADGE[l.status] || esc(l.status)}</span></div>
-        ${lastCallFailed ? `<div style="margin-top:4px; font-size:10.5px; color:#dc2626;"><i class="fa-solid fa-triangle-exclamation"></i> Không tiếp cận được lần gần nhất: ${esc(lastCall.failReason)}</div>` : ''}
+    boardHtml += `
+      <div class="pipeline-col">
+        <div class="pipeline-col-hd" style="border-top:3px solid ${stg.color}">
+          <span class="pipeline-col-title">${stg.label}</span>
+          <span class="chip gy tmono" style="padding:1px 6px;">${stgLeads.length}</span>
+        </div>
+        <div class="pipeline-col-body">
+          ${stgLeads.length === 0 ? `
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; padding:24px 12px; border:2px dashed var(--n200); border-radius:var(--rs); color:var(--n400); font-size:11px; text-align:center;">
+              Trống
+            </div>
+          ` : cardsHtml}
+        </div>
       </div>
-      <div style="display:flex; gap:6px; flex-wrap:wrap; justify-content:flex-end;">
-        ${needsCall ? `<button class="btn pr" onclick="window.crmApp.openCallSession('lead', '${l.id}')"><i class="fa-solid fa-phone-volume"></i> Gọi điện</button>` : ''}
-        ${l.status !== 'new' && l.status !== 'paid' && l.status !== 'lost' ? `<button class="btn bl" onclick="window.crmApp.openCallSession('lead', '${l.id}')"><i class="fa-solid fa-phone"></i> Gọi lại</button>` : ''}
-        ${actions.map(a => `<button class="btn ${a.cls}" onclick="window.crmApp.tickLeadStatus('${l.id}', '${a.to}')">${a.label}</button>`).join('')}
-      </div>
-    </div>
-  `; }).join('');
+    `;
+  });
+
+  const lostLeads = mine.filter(l => l.status === 'lost');
 
   return `
     <div class="page-container animate-fadeIn">
       <div class="panel" style="background:linear-gradient(135deg, var(--p600), var(--b600)); color:white; border:none;">
         <h2 style="font-family:var(--fd); font-size:18px; font-weight:700;">Chào ${esc(session.name)}!</h2>
-        <p style="font-size:12.5px; color:rgba(255,255,255,0.85); margin-top:4px;">Thấy Lead mới → Gọi điện tiếp cận → Tick trạng thái. Không cần nhập liệu.</p>
+        <p style="font-size:12.5px; color:rgba(255,255,255,0.85); margin-top:4px;">Thấy Lead mới → Gọi điện tiếp cận → Kéo tiến độ trên bảng Kanban. Bấm 🔥/⚡/❄️ để đổi độ ưu tiên.</p>
       </div>
 
       <h3 style="font-family:var(--fd); font-size:14px; font-weight:800; margin:16px 0 8px;"><i class="fa-solid fa-bell text-amber-500"></i> Lead mới chờ xử lý (${unclaimed.length})</h3>
       <div style="display:flex; flex-direction:column; gap:8px;">${unclaimedCards}</div>
 
-      <h3 style="font-family:var(--fd); font-size:14px; font-weight:800; margin:20px 0 8px;"><i class="fa-solid fa-user-tie text-indigo-500"></i> Lead của tôi (${mine.length})</h3>
-      <div style="display:flex; flex-direction:column; gap:8px;">${mineCards}</div>
+      <h3 style="font-family:var(--fd); font-size:14px; font-weight:800; margin:20px 0 8px;"><i class="fa-solid fa-user-tie text-indigo-500"></i> Kanban Lead Của Tôi (${mine.length})</h3>
+      <div class="pipeline-board">${boardHtml}</div>
+
+      ${lostLeads.length > 0 ? `
+        <h3 style="font-family:var(--fd); font-size:13px; font-weight:800; margin:20px 0 8px; color:var(--n500);"><i class="fa-solid fa-ban"></i> Không mua (${lostLeads.length})</h3>
+        <div style="display:flex; flex-direction:column; gap:6px;">
+          ${lostLeads.map(l => `
+            <div class="panel" style="display:flex; justify-content:space-between; align-items:center; opacity:0.7; padding:8px 14px;">
+              <span style="font-size:12.5px;">${esc(l.name)} &middot; ${esc(l.company)}</span>
+              <button class="btn bl xs" onclick="window.crmApp.tickLeadStatus('${l.id}','new')">↺ Mở lại</button>
+            </div>
+          `).join('')}
+        </div>
+      ` : ''}
     </div>
   `;
 }
