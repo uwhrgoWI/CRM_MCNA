@@ -3,7 +3,7 @@
 
 import {
   USERS_DB, COMPANIES_DB, CONTACTS_DB, LEADS_DB, DEALS_DB, TASKS_DB,
-  ACTIVITIES_DB, QUOTES_DB, PRODUCTS_DB, TICKETS_DB, INVOICES_DB, REVENUE_DATA, AUDIT_LOG_DB, CALL_LOGS_DB
+  ACTIVITIES_DB, QUOTES_DB, PRODUCTS_DB, TICKETS_DB, INVOICES_DB, AUDIT_LOG_DB, CALL_LOGS_DB
 } from './crm-database.js';
 
 import { svgBarChart, svgLineChart, svgDonut, svgFunnel, svgSparkline } from './crm-charts.js';
@@ -239,18 +239,30 @@ export function buildSidebar(session, activePage, isCollapsed) {
           <span class="ni-txt">Báo Cáo & Phân Tích</span>
         </div>
       </div>
-      
-      ${flowSecHtml}
-      
+
+      <div class="nav-sec">
+        <p class="nav-sec-label" style="display:flex; align-items:center; gap:5px; color:#4f46e5; font-weight:800; font-size:10.5px; letter-spacing:0.5px; text-transform:uppercase;"><i class="fa-solid fa-binoculars"></i> Quan Sát Vận Hành</p>
+        <div class="ni ${activePage === 'leads' ? 'active' : ''}" data-page="leads">
+          <span class="ni-ic" style="color:#6366f1;"><i class="fa-solid fa-filter"></i></span>
+          <span class="ni-txt">Leads</span>
+          <span class="ni-bd r" style="background:#6366f1; font-size:9.5px; font-weight:bold;">${LEADS_DB.length}</span>
+        </div>
+        <div class="ni ${activePage === 'tickets' ? 'active' : ''}" data-page="tickets">
+          <span class="ni-ic" style="color:#14b8a6;"><i class="fa-solid fa-headset"></i></span>
+          <span class="ni-txt">SLA Tickets Hỗ Trợ</span>
+          <span class="ni-bd r" style="background:#14b8a6; font-size:9.5px; font-weight:bold;">${TICKETS_DB.filter(t => t.status === 'open').length}</span>
+        </div>
+        <div class="ni ${activePage === 'kpi-calls' ? 'active' : ''}" data-page="kpi-calls">
+          <span class="ni-ic" style="color:#f43f5e;"><i class="fa-solid fa-phone-volume"></i></span>
+          <span class="ni-txt">KPI Cuộc Gọi</span>
+        </div>
+      </div>
+
       <div class="nav-sec">
         <p class="nav-sec-label">Dữ liệu & Bổ trợ</p>
         <div class="ni ${activePage === 'contacts' ? 'active' : ''}" data-page="contacts">
           <span class="ni-ic"><i class="fa-solid fa-user-group"></i></span>
           <span class="ni-txt font-semibold">Khách Hàng (B2B/B2C)</span>
-        </div>
-        <div class="ni ${activePage === 'products' ? 'active' : ''}" data-page="products">
-          <span class="ni-ic"><i class="fa-solid fa-boxes-stacked"></i></span>
-          <span class="ni-txt">Mã Hàng Sản Phẩm</span>
         </div>
         <div class="ni ${activePage === 'sales-toolkit' ? 'active' : ''}" data-page="sales-toolkit">
           <span class="ni-ic"><i class="fa-solid fa-wand-magic-sparkles text-amber-500"></i></span>
@@ -405,16 +417,14 @@ export function buildTopbar(title, unreadsCount, session) {
         </div>
       </div>
 
+      ${session.role === 'superadmin' ? `
       <!-- Live Switcher trigger menu -->
       <button class="btn pr" id="topbar-quickaction-trigger" style="padding: 8px 12px; border-radius:100px;">
         <i class="fa-solid fa-circle-plus"></i> Tạo nhanh
       </button>
       <div class="dd-menu" id="topbar-quickaction-menu" style="width: 180px;">
         <div class="dd-item" id="qa-add-lead-btn"><i class="fa-solid fa-filter text-amber-500"></i> Tạo Lead mới</div>
-        <div class="dd-item" id="qa-add-deal-btn"><i class="fa-solid fa-comments-dollar text-primary-500"></i> Tạo Deal mới</div>
-        <div class="dd-item" id="qa-add-contact-btn"><i class="fa-solid fa-user-plus text-success-500"></i> Thêm Contact</div>
-        <div class="dd-item" id="qa-add-task-btn"><i class="fa-solid fa-list-check text-purple-500"></i> Khởi tạo Task</div>
-      </div>
+      </div>` : ''}
 
       <!-- Quick user profile dropdown -->
       <div class="topbar-right-dropdown">
@@ -435,65 +445,98 @@ export function buildTopbar(title, unreadsCount, session) {
 }
 
 /* ==========================================================================
+   2b. LIVE REPORTING — computed straight from real Leads, never seed data.
+   Every chart/report reads from this instead of the old fake DEALS/REVENUE
+   seed arrays, which stay empty forever now that Sales works leads by
+   status-tick rather than manually creating Deals/Quotes/Invoices.
+   ========================================================================== */
+
+// Parses the app's "d/m/yyyy" (vi-VN toLocaleDateString) convention.
+function parseVnDate(str) {
+  const parts = String(str || '').split('/');
+  if (parts.length !== 3) return null;
+  const day = parseInt(parts[0], 10), month = parseInt(parts[1], 10) - 1, year = parseInt(parts[2], 10);
+  if (!year || Number.isNaN(month)) return null;
+  return new Date(year, month, day);
+}
+
+export function computeMonthlyLeadStats(monthsBack = 12, repId = 'all') {
+  const now = new Date();
+  const months = [];
+  for (let i = monthsBack - 1; i >= 0; i--) {
+    const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+    months.push({ key: `${d.getFullYear()}-${d.getMonth()}`, month: `T${d.getMonth() + 1}/${String(d.getFullYear()).slice(2)}`, revenue: 0, wonDeals: 0 });
+  }
+  const byKey = new Map(months.map(m => [m.key, m]));
+  for (const l of LEADS_DB) {
+    if (l.status !== 'paid') continue;
+    if (repId !== 'all' && l.ownerId !== repId) continue;
+    const d = parseVnDate(l.createdAt);
+    if (!d) continue;
+    const bucket = byKey.get(`${d.getFullYear()}-${d.getMonth()}`);
+    if (bucket) { bucket.revenue += Number(l.value) || 0; bucket.wonDeals += 1; }
+  }
+  return months;
+}
+
+export const LEAD_STATUS_LABELS = {
+  new: '🆕 Mới / chưa gọi', contacting: '📞 Đã tiếp cận', proposal: '💵 Đã báo giá',
+  awaiting_payment: '⏳ Đợi chuyển khoản', paid: '✅ Đã chuyển khoản', lost: '❌ Không mua'
+};
+
+/* ==========================================================================
    3. ROLE SPECIFIC DASHBOARD Renders
    ========================================================================== */
 
-export function renderSuperAdminDashboard() {
-  // Key metrics calculations
-  const totalRevenue = REVENUE_DATA.reduce((sum, d) => sum + d.revenue, 0);
+export function renderSuperAdminDashboard(session) {
+  // Key metrics calculations — all derived live from LEADS_DB (real usage),
+  // not the old Deals/Invoices/Revenue seed tables that nobody writes to anymore.
+  const paidLeads = LEADS_DB.filter(l => l.status === 'paid');
+  const lostLeads = LEADS_DB.filter(l => l.status === 'lost');
+  const totalRevenue = paidLeads.reduce((sum, l) => sum + (Number(l.value) || 0), 0);
   const leadsCount = LEADS_DB.length;
-  const dealsWon = DEALS_DB.filter(d => d.stage === 'closed_won').length;
+  const dealsWon = paidLeads.length;
   const ticketsCount = TICKETS_DB.filter(t => t.status === 'open').length;
 
-  // MTD collected cashflow - live from paid/partial invoices this calendar month
-  const now = new Date();
-  const invValue = (inv) => Number(inv.total ?? inv.amount ?? 0);
-  const mtdCollected = INVOICES_DB.filter(inv => {
-    if (inv.status !== 'paid' && inv.status !== 'partial') return false;
-    const d = new Date(inv.paidAt || inv.createdAt || 0);
-    return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-  }).reduce((sum, inv) => sum + invValue(inv) * (inv.status === 'partial' ? 0.5 : 1), 0);
+  const decidedCount = paidLeads.length + lostLeads.length;
+  const winRate = decidedCount > 0 ? Math.round((dealsWon / decidedCount) * 100) : 0;
 
-  // Win rate - live from real deal stages, 0 when there is no data
-  const winRate = DEALS_DB.length > 0 ? Math.round((dealsWon / DEALS_DB.length) * 100) : 0;
-
-  const proposalCount = DEALS_DB.filter(d => d.stage === 'proposal').length;
+  const proposalCount = LEADS_DB.filter(l => l.status === 'proposal' || l.status === 'awaiting_payment').length;
 
   return `
     <div class="page-container animate-fadeIn" style="display:flex; flex-direction:column; gap:12px;">
       <!-- Welcome Hero Jumbotron (TIGHTENED) -->
       <div class="panel" style="background:var(--grad); border:none; color:white; padding:12px 20px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:10px; margin-bottom:4px;">
         <div style="display:flex; flex-direction:column; gap:2px;">
-          <h2 style="font-family:var(--fd); font-size:16px; font-weight:800;">Chào Ngày Mới, Cao Khải Hoàn!</h2>
-          <p style="font-size:11.5px; color:rgba(255,255,255,0.8);">Cổng điều phối Super Admin. <i class="fa-solid fa-calendar-check"></i> Hiện có <strong class="text-amber-300">${proposalCount} Deals Báo Giá</strong> đang chờ chốt.</p>
+          <h2 style="font-family:var(--fd); font-size:16px; font-weight:800;">Chào ${esc(session?.name || 'Admin')}!</h2>
+          <p style="font-size:11.5px; color:rgba(255,255,255,0.8);">Cổng quan sát điều hành. <i class="fa-solid fa-calendar-check"></i> Hiện có <strong class="text-amber-300">${proposalCount} Lead đang chờ khách chuyển khoản/báo giá</strong>.</p>
         </div>
         <div style="display:flex; gap:6px;">
           <button class="btn bl xs" id="sa-export-sc-data" style="background-color:rgba(255,255,255,0.15); border:1px solid rgba(255,255,255,0.25); color:white; font-size:11px; padding:4px 8px;"><i class="fa-solid fa-download"></i> Tải sao lưu DB</button>
-          <button class="btn pr xs" id="sa-new-quota-target" style="background-color:white; color:var(--b600); font-size:11px; padding:4px 8px;"><i class="fa-solid fa-bullseye"></i> Đặt doanh hiệu</button>
         </div>
       </div>
 
       <!-- 5 compact Metrics KPI Row -->
       <div class="krow" style="gap:10px; margin-bottom:2px;">
         <div class="kc b" style="padding:10px 14px;">
-          <span class="kc-title" style="font-size:11px;">Dòng chi trả MTD</span>
-          <span class="kc-val" style="font-size:16px; font-weight:800; line-height:1.2;">${fmtVND(mtdCollected)}</span>
-          <span class="kc-sub" style="font-size:9.5px; margin-top:2px;">Hóa đơn đã/đang thu tháng này</span>
+          <span class="kc-title" style="font-size:11px;">Doanh Thu Đã Chốt</span>
+          <span class="kc-val" style="font-size:16px; font-weight:800; line-height:1.2;">${fmtVND(totalRevenue)}</span>
+          <span class="kc-sub" style="font-size:9.5px; margin-top:2px;">Tổng giá trị Lead đã "Đã chuyển khoản"</span>
         </div>
         <div class="kc p" style="padding:10px 14px;">
-          <span class="kc-title" style="font-size:11px;">Cơ Hội thắng</span>
+          <span class="kc-title" style="font-size:11px;">Đã Chốt Thành Công</span>
           <span class="kc-val" style="font-size:16px; font-weight:800; line-height:1.2;">${dealsWon}</span>
-          <span class="kc-sub" style="font-size:9.5px; margin-top:2px;">Trên ${DEALS_DB.length} deals</span>
+          <span class="kc-sub" style="font-size:9.5px; margin-top:2px;">Trên ${leadsCount} lead</span>
         </div>
         <div class="kc g" style="padding:10px 14px;">
-          <span class="kc-title" style="font-size:11px;">Leads mới</span>
+          <span class="kc-title" style="font-size:11px;">Tổng Leads</span>
           <span class="kc-val" style="font-size:16px; font-weight:800; line-height:1.2;">${leadsCount}</span>
           <span class="kc-sub" style="font-size:9.5px; margin-top:2px;">Tổng lead hiện có</span>
         </div>
         <div class="kc a" style="padding:10px 14px;">
           <span class="kc-title" style="font-size:11px;">Win Rate</span>
           <span class="kc-val" style="font-size:16px; font-weight:800; line-height:1.2;">${winRate}%</span>
-          <span class="kc-sub" style="font-size:9.5px; margin-top:2px;">${DEALS_DB.length} deals</span>
+          <span class="kc-sub" style="font-size:9.5px; margin-top:2px;">${decidedCount} lead đã ngã ngũ</span>
         </div>
         <div class="kc r" style="padding:10px 14px;">
           <span class="kc-title" style="font-size:11px;">Support Tickets</span>
@@ -505,15 +548,15 @@ export function renderSuperAdminDashboard() {
       <!-- Compact Chart Columns Grid -->
       <div class="db-grid-3x" style="gap:12px; margin-bottom:2px;">
         <div class="panel" style="display:flex; flex-direction:column; gap:6px; padding:12px;">
-          <h3 style="font-family:var(--fd); font-size:12.5px; font-weight:700;"><i class="fa-solid fa-sack-dollar text-indigo-500"></i> Doanh Thu Năm 2025 - 2026</h3>
+          <h3 style="font-family:var(--fd); font-size:12.5px; font-weight:700;"><i class="fa-solid fa-sack-dollar text-indigo-500"></i> Doanh Thu Theo Tháng (Thực Tế)</h3>
           <div id="sa-bar-chart-container" class="chart-container-svg" style="height:140px; min-height:140px; max-height:140px;"></div>
         </div>
         <div class="panel" style="display:flex; flex-direction:column; gap:6px; padding:12px;">
-          <h3 style="font-family:var(--fd); font-size:12.5px; font-weight:700;"><i class="fa-solid fa-user-plus text-indigo-500"></i> Tốc độ chuyển đổi Lead (6M)</h3>
+          <h3 style="font-family:var(--fd); font-size:12.5px; font-weight:700;"><i class="fa-solid fa-user-plus text-indigo-500"></i> Số Lead Chốt Thành Công (6M)</h3>
           <div id="sa-line-chart-container" class="chart-container-svg" style="height:140px; min-height:140px; max-height:140px;"></div>
         </div>
         <div class="panel" style="display:flex; flex-direction:column; gap:6px; padding:12px;">
-          <h3 style="font-family:var(--fd); font-size:12.5px; font-weight:700;"><i class="fa-solid fa-pie-chart text-indigo-500"></i> Trạng thái Deals hoạt động</h3>
+          <h3 style="font-family:var(--fd); font-size:12.5px; font-weight:700;"><i class="fa-solid fa-pie-chart text-indigo-500"></i> Trạng thái Leads hiện tại</h3>
           <div id="sa-donut-chart-container" class="chart-container-svg" style="height:140px; min-height:140px; max-height:140px;"></div>
         </div>
       </div>
@@ -522,22 +565,21 @@ export function renderSuperAdminDashboard() {
       <div class="db-grid-2x" style="gap:12px;">
         <div class="panel" style="padding:12px;">
           <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
-            <h3 style="font-family:var(--fd); font-size:12.5px; font-weight:700;"><i class="fa-solid fa-trophy text-amber-500"></i> Bảng Phong Thần Sales Rep</h3>
-            <button class="btn bl xs" id="sa-view-performance-sc-link" style="font-size:10px; padding:2px 6px;">Hiệu suất</button>
+            <h3 style="font-family:var(--fd); font-size:12.5px; font-weight:700;"><i class="fa-solid fa-trophy text-amber-500"></i> Bảng Hiệu Suất Sales</h3>
           </div>
           <table class="tw" style="font-size:12px;">
             <thead>
               <tr>
                 <th>Chiến binh</th>
                 <th>Phòng ban</th>
-                <th style="text-align:right;">Deals</th>
+                <th style="text-align:right;">Đã chốt</th>
                 <th style="text-align:right;">Doanh thu</th>
               </tr>
             </thead>
             <tbody>
               ${USERS_DB.filter(u=>u.role==='sales').map(u => {
-                const wonDeals = DEALS_DB.filter(d => d.ownerId === u.id && d.stage === 'closed_won');
-                return { u, dealsWon: wonDeals.length, revenue: wonDeals.reduce((sum, d) => sum + Number(d.value || 0), 0) };
+                const won = LEADS_DB.filter(l => l.ownerId === u.id && l.status === 'paid');
+                return { u, dealsWon: won.length, revenue: won.reduce((sum, l) => sum + Number(l.value || 0), 0) };
               }).sort((a, b) => b.revenue - a.revenue).slice(0, 4).map(({ u, dealsWon, revenue }) => `
                 <tr>
                   <td>
@@ -2143,62 +2185,6 @@ export function renderCustomersPage(activeSubTab = 'b2c') {
   `;
 }
 
-export function renderProductsPage(productsList) {
-  return `
-    <div class="page-container animate-fadeIn">
-      <div class="panel" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px; margin-bottom:12px; border-left: 4px solid var(--orange);">
-        <div>
-          <h2 style="font-family:var(--fd); font-size:16px; font-weight:800; color:var(--n800);"><i class="fa-solid fa-boxes-stacked text-amber-500"></i> Danh Mục Giải Pháp & Sản Phẩm Aura</h2>
-          <p style="font-size:12px; color:var(--n500); margin-top:2px;">Danh sách bản quyền phần mềm SaaS, dịch vụ tư vấn chuyển đổi số, triển khai tích hợp và thiết bị phần cứng.</p>
-        </div>
-        <button class="btn pr xs" id="products-toggle-creator-trigger-btn"><i class="fa-solid fa-circle-plus"></i> Thêm Sản Phẩm Mới</button>
-      </div>
-
-      <!-- Bento Product Cards Grid -->
-      <div class="db-grid-3x" style="gap:14px; margin-bottom:12px;">
-        ${productsList.map(p => `
-          <div class="panel" style="display:flex; flex-direction:column; gap:8px; border-top: 4px solid ${p.category === 'Service' ? 'var(--teal)' : p.category === 'Hardware' ? 'var(--amber)' : p.category === 'Consult' ? 'var(--purple)' : 'var(--b500)'}; padding: 16px; position:relative; min-height: 250px;">
-            <div style="position:absolute; top:12px; right:12px;">
-              <span class="chip ${p.status === 'active' ? 'gr' : 'rd'} font-bold select-none uppercase font-sans" style="font-size:8.5px;">${p.status === 'active' ? 'Đang bán' : 'Tạm ngưng'}</span>
-            </div>
-            
-            <div style="font-size:26px; margin-bottom:2px;">${p.emoji || '📦'}</div>
-            
-            <div style="font-size:9px; font-weight:700; color:var(--n400); text-transform:uppercase; font-family:'JetBrains Mono', monospace;">Mã SKU: ${esc(p.code)}</div>
-            <h4 style="font-family:var(--fd); font-size:13.5px; font-weight:800; color:var(--n900); line-height:1.3; margin: 2px 0; min-height: 36px;">${esc(p.name)}</h4>
-            
-            <div style="display:flex; justify-content:space-between; align-items:center; background-color:var(--n25); padding:4px 8px; border-radius:var(--rs); margin: 2px 0; font-size:11.5px;">
-              <span style="color:var(--n400);">Nhóm sản phẩm:</span>
-              <span class="chip bl font-bold" style="font-size:9px;">${esc(p.category)}</span>
-            </div>
-
-            <p style="font-size:11.5px; color:var(--n500); line-height:1.4; min-height: 32px; display:-webkit-box; -webkit-box-orient:vertical; -webkit-line-clamp:2; overflow:hidden;">
-              ${esc(p.description)}
-            </p>
-
-            <!-- Price and stock level -->
-            <div style="display:flex; justify-content:space-between; align-items:center; margin-top:auto; border-top:1px dashed var(--bd); padding-top:8px;">
-              <div>
-                <span style="font-size:9px; font-weight:700; color:var(--n400); text-transform:uppercase; display:block;">Đơn giá tiêu chuẩn</span>
-                <span style="font-size:13.5px; font-weight:800; color:var(--green); font-family:'JetBrains Mono', monospace;">${fmtVND(p.price)}</span>
-              </div>
-              <div style="text-align:right;">
-                <span style="font-size:9px; font-weight:700; color:var(--n400); text-transform:uppercase; display:block;">Kho / Đơn vị</span>
-                <span style="font-weight:700; font-size:11.5px; color:var(--n700);">${p.stock} ${esc(p.unit || 'Gói')}</span>
-              </div>
-            </div>
-
-            <div style="display:flex; gap:6px; margin-top:8px; padding-top:4px;">
-              <button class="btn bl xs" onclick="window.crmApp.openProductDetailModal('${p.id}')" style="flex:1; font-weight:700; font-size:11px; padding: 4px 8px;"><i class="fa-solid fa-edit"></i> Điều chỉnh</button>
-              <button class="btn rd icon-only sm" onclick="window.crmApp.deleteProductDirect('${p.id}')" title="Xóa bỏ" style="width:28px; height:28px;"><i class="fa-solid fa-trash-can"></i></button>
-            </div>
-          </div>
-        `).join('')}
-      </div>
-    </div>
-  `;
-}
-
 /* ==========================================================================
    9. INTERACTIVE LIVE CC CHAT / TICKETING SUPPORT
    ========================================================================== */
@@ -2484,24 +2470,25 @@ export function renderSystemSettingsPage() {
   `;
 }
 
-export function renderReportsPage(filterState = { range: '12', repId: 'all', growthExpect: 15 }) {
+export function renderReportsPage(filterState = { range: '12', repId: 'all' }) {
   const rangeLimit = parseInt(filterState.range) || 12;
-  const filteredData = REVENUE_DATA.slice(-rangeLimit);
+  const filteredData = computeMonthlyLeadStats(rangeLimit, filterState.repId || 'all');
 
-  // Totals calculations
+  // Totals calculations — all live from real "paid" leads
   const totalRevenue = filteredData.reduce((sum, d) => sum + d.revenue, 0);
   const totalDeals = filteredData.reduce((sum, d) => sum + d.wonDeals, 0);
   const avgDealValue = totalDeals > 0 ? Math.round(totalRevenue / totalDeals) : 0;
-  
+
   // High point month
   const maxMonthObj = filteredData.reduce((max, d) => d.revenue > max.revenue ? d : max, filteredData[0] || { month: 'Chưa có', revenue: 0 });
 
   const reps = USERS_DB.filter(u => u.role === 'sales');
-  
-  // Future estimations
-  const nextMonths = ['T6/26', 'T7/26', 'T8/26'];
-  const baseAvgRevenue = Math.round(totalRevenue / filteredData.length);
-  const expectedRate = (100 + Number(filterState.growthExpect || 15)) / 100;
+
+  // Current pipeline breakdown (real, replaces the old speculative forecast box)
+  const pipelineStatuses = ['new', 'contacting', 'proposal', 'awaiting_payment', 'paid', 'lost'];
+  const pipelineBreakdown = pipelineStatuses.map(st => ({
+    status: st, label: LEAD_STATUS_LABELS[st], count: LEADS_DB.filter(l => l.status === st).length
+  }));
 
   return `
     <div class="page-container animate-fadeIn">
@@ -2509,7 +2496,7 @@ export function renderReportsPage(filterState = { range: '12', repId: 'all', gro
       <div class="panel" style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:16px; margin-bottom:16px; border-left: 4px solid var(--b500);">
         <div>
           <h2 style="font-family:var(--fd); font-size:18px; font-weight:800; color:var(--n800);"><i class="fa-solid fa-chart-pie text-blue-600"></i> Phòng Nghiệp Vụ Báo Cáo & Phân Tích Kinh Doanh</h2>
-          <p style="font-size:12.5px; color:var(--n500); margin-top:3px;">Báo cáo tổng hợp số liệu thực tế, tỷ lệ biến thiên doanh thu, và mô phỏng dự báo kế hoạch đại lý.</p>
+          <p style="font-size:12.5px; color:var(--n500); margin-top:3px;">Số liệu thực tế 100% từ Lead — không có dữ liệu mô phỏng hay dự báo.</p>
         </div>
         <div style="display:flex; gap:8px;">
           <button class="btn bl xs" id="rpt-refresh-btn"><i class="fa-solid fa-arrows-rotate"></i> Làm mới nguồn</button>
@@ -2534,10 +2521,6 @@ export function renderReportsPage(filterState = { range: '12', repId: 'all', gro
               <option value="all" ${filterState.repId === 'all' ? 'selected' : ''}>Tất cả Sales Reps</option>
               ${reps.map(u => `<option value="${u.id}" ${filterState.repId === u.id ? 'selected' : ''}>${esc(u.name)} (${esc(u.dept)})</option>`).join('')}
             </select>
-          </div>
-          <div class="fg" style="margin:0; width:150px;">
-            <label style="font-size:11px; font-weight:700; color:var(--n600); margin-bottom:6px; display:block;">% Tăng trưởng mô phỏng</label>
-            <input type="number" id="rpt-growth-expect" min="1" max="100" value="${filterState.growthExpect || 15}" style="padding:6px 10px; font-size:13px; font-weight:700; text-align:center; width:100%; border-radius: var(--rs); border: 1px solid var(--bd);" />
           </div>
           <div>
             <button class="btn pr" id="rpt-submit-filter-btn" style="height:35px; min-width:110px; font-weight:700;"><i class="fa-solid fa-filter"></i> Áp dụng bộ lọc</button>
@@ -2619,11 +2602,11 @@ export function renderReportsPage(filterState = { range: '12', repId: 'all', gro
             <div>
               <div style="font-size:11px; font-weight:800; color:#6b21a8; text-transform:uppercase; letter-spacing:0.5px;">T3: Đề Xuất (Sales)</div>
               <p style="font-family:var(--fm); font-size:24px; font-weight:800; color:#7e22ce; margin:6px 0;">
-                ${DEALS_DB.filter(d => d.stage !== 'prospecting' && d.stage !== 'qualified').length}
+                ${LEADS_DB.filter(l => ['proposal','awaiting_payment','paid'].includes(l.status)).length}
               </p>
             </div>
             <span class="chip pu font-bold" style="font-size:9.5px; width:fit-content; margin:0 auto;">
-              ${LEADS_DB.filter(l => l.status !== 'new' && l.status !== 'pending_assignment').length > 0 ? ((DEALS_DB.filter(d => d.stage !== 'prospecting' && d.stage !== 'qualified').length / LEADS_DB.filter(l => l.status !== 'new' && l.status !== 'pending_assignment').length) * 100).toFixed(1) : 0}% Chuyển đổi
+              ${LEADS_DB.length > 0 ? ((LEADS_DB.filter(l => ['proposal','awaiting_payment','paid'].includes(l.status)).length / LEADS_DB.length) * 100).toFixed(1) : 0}% Chuyển đổi
             </span>
           </div>
 
@@ -2637,24 +2620,24 @@ export function renderReportsPage(filterState = { range: '12', repId: 'all', gro
             <div>
               <div style="font-size:11px; font-weight:800; color:#166534; text-transform:uppercase; letter-spacing:0.5px;">T4: Quyết Toán (Payment)</div>
               <p style="font-family:var(--fm); font-size:24px; font-weight:800; color:#15803d; margin:6px 0;">
-                ${DEALS_DB.filter(d => d.stage === 'closed_won').length}
+                ${LEADS_DB.filter(l => l.status === 'paid').length}
               </p>
             </div>
             <span class="chip gr font-bold" style="font-size:9.5px; width:fit-content; margin:0 auto;">
-              ${DEALS_DB.filter(d => d.stage !== 'prospecting' && d.stage !== 'qualified').length > 0 ? ((DEALS_DB.filter(d => d.stage === 'closed_won').length / DEALS_DB.filter(d => d.stage !== 'prospecting' && d.stage !== 'qualified').length) * 100).toFixed(1) : 0}% Chuyển đổi
+              ${LEADS_DB.filter(l => ['proposal','awaiting_payment','paid'].includes(l.status)).length > 0 ? ((LEADS_DB.filter(l => l.status === 'paid').length / LEADS_DB.filter(l => ['proposal','awaiting_payment','paid'].includes(l.status)).length) * 100).toFixed(1) : 0}% Chuyển đổi
             </span>
           </div>
         </div>
 
         <div style="background-color:#f8fafc; border:1px solid #f1f5f9; border-radius:6px; margin-top:14px; padding:12px; display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:12px;">
           <div style="font-size:12.5px; color:#334155; display:flex; align-items:center; gap:6px;">
-            🏁 <strong style="color:#0f172a;">Tỷ lệ thắng phễu lũy kế (T1 → T4 Closed Won):</strong> 
+            🏁 <strong style="color:#0f172a;">Tỷ lệ thắng phễu lũy kế (T1 → T4 Đã chuyển khoản):</strong>
             <span style="font-size:14.5px; font-weight:900; color:#16a34a; font-family:var(--fm); background:#dcfce7; padding:2px 8px; border-radius:4px;">
-              ${LEADS_DB.length > 0 ? ((DEALS_DB.filter(d => d.stage === 'closed_won').length / LEADS_DB.length) * 100).toFixed(1) : 0}%
+              ${LEADS_DB.length > 0 ? ((LEADS_DB.filter(l => l.status === 'paid').length / LEADS_DB.length) * 100).toFixed(1) : 0}%
             </span>
           </div>
           <div style="font-size:11px; color:#64748b; font-style:italic;">
-            (Chỉ số phễu thực thi dựa trên dòng quan hệ dữ liệu liên phòng ban)
+            (Tính trực tiếp từ trạng thái Lead thật — không qua bảng Deals)
           </div>
         </div>
       </div>
@@ -2663,34 +2646,21 @@ export function renderReportsPage(filterState = { range: '12', repId: 'all', gro
       <div class="db-grid-2x" style="margin-bottom:16px;">
         <div class="panel" style="display:flex; flex-direction:column; gap:12px; height:340px;">
           <h3 style="font-family:var(--fd); font-size:14px; font-weight:700; color:var(--b600);"><i class="fa-solid fa-chart-simple"></i> Biểu đồ Phân tích Doanh Thu Kỳ Lọc</h3>
-          <div style="font-size:11px; color:var(--n400); margin-top:-6px;">Doanh số biểu đạt trực quan tại ERP (Đơn vị triệu đồng)</div>
+          <div style="font-size:11px; color:var(--n400); margin-top:-6px;">Doanh thu thực thu theo tháng, tính từ Lead "Đã chuyển khoản"</div>
           <div id="rpt-bar-chart-container" class="chart-container-svg" style="flex:1; width:100%; height:100%; min-height: 180px;"></div>
         </div>
 
         <div class="panel" style="display:flex; flex-direction:column; gap:12px; height:340px;">
-          <h3 style="font-family:var(--fd); font-size:14px; font-weight:700; color:var(--b600);"><i class="fa-solid fa-bullseye text-amber-500"></i> Mô phỏng & Dự báo xu hướng Doanh số (3 tháng tiếp theo)</h3>
-          <div style="font-size:11px; color:var(--n400); margin-top:-6px;">Giả định với mục tiêu tăng trưởng dự thảo đề xuất là <span style="font-weight:700; color:var(--amber);">${filterState.growthExpect || 15}%</span> hàng tháng</div>
-          
-          <div style="display:flex; flex-direction:column; gap:8px; margin-top:12px;">
-            ${nextMonths.map((m, index) => {
-              const forecastedRevenue = Math.round(baseAvgRevenue * Math.pow(expectedRate, index + 1));
-              return `
-                <div style="background-color:var(--n25); border:1px dashed var(--bd); border-radius:var(--rs); padding:10px 14px; display:flex; justify-content:space-between; align-items:center;">
-                  <div>
-                    <span style="font-size:9.5px; color:var(--n400); font-weight:700; text-transform:uppercase;">Tháng dự toán</span>
-                    <p style="font-size:14.5px; font-weight:800; color:var(--n800);">${m}</p>
-                  </div>
-                  <div style="text-align:right;">
-                    <span style="font-size:9.5px; color:var(--n400); font-weight:700; text-transform:uppercase;">Doanh thu dự báo (+${filterState.growthExpect}%)</span>
-                    <p style="font-size:14.5px; font-weight:800; color:var(--green); font-family:'JetBrains Mono', monospace;">${fmtVND(forecastedRevenue)}</p>
-                  </div>
-                </div>
-              `;
-            }).join('')}
-          </div>
+          <h3 style="font-family:var(--fd); font-size:14px; font-weight:700; color:var(--b600);"><i class="fa-solid fa-layer-group text-amber-500"></i> Phân Bổ Pipeline Hiện Tại</h3>
+          <div style="font-size:11px; color:var(--n400); margin-top:-6px;">Số lượng Lead đang ở mỗi bước — bức tranh thật ngay lúc này</div>
 
-          <div style="margin-top:auto; font-size:11.5px; background-color:#eff6ff; border-left:4px solid var(--b500); padding:10px; border-radius:0 var(--rs) var(--rs) 0; color:var(--b700); line-height:1.4;">
-            <i class="fa-solid fa-circle-info text-blue-600"></i> <strong>Khuyến nghị từ cố vấn Aura AI:</strong> Để đạt mức tăng trưởng kỳ vọng này, bộ phận kinh doanh Aura cần huy động thêm ít nhất 24 lead mới hàng tháng, đồng thời rút ngắn chu kỳ từ xuất đề xuất (Proposal) đến thương lượng chốt ký.
+          <div style="display:flex; flex-direction:column; gap:8px; margin-top:4px;">
+            ${pipelineBreakdown.map(p => `
+              <div style="background-color:var(--n25); border:1px solid var(--bd); border-radius:var(--rs); padding:9px 14px; display:flex; justify-content:space-between; align-items:center;">
+                <span style="font-size:12.5px; font-weight:700; color:var(--n700);">${p.label}</span>
+                <span style="font-size:15px; font-weight:800; color:var(--n900); font-family:var(--fm);">${p.count}</span>
+              </div>
+            `).join('')}
           </div>
         </div>
       </div>
@@ -2703,28 +2673,19 @@ export function renderReportsPage(filterState = { range: '12', repId: 'all', gro
             <tr>
               <th>Tháng thời kỳ</th>
               <th style="text-align:right;">Doanh thu đạt được</th>
-              <th style="text-align:right;">Hợp đồng thắng kỳ trước</th>
-              <th style="text-align:right;">Doanh số bình quân / Deal chốt</th>
-              <th>Đánh giá trạng thái thực tế</th>
+              <th style="text-align:right;">Lead chốt thành công</th>
+              <th style="text-align:right;">Doanh số bình quân / Lead chốt</th>
             </tr>
           </thead>
           <tbody>
-            ${filteredData.map(d => {
-              const statusLabel = d.revenue >= 1700000000 
-                ? '<span class="chip g uppercase font-bold" style="font-size:9px;">Vượt chỉ tiêu</span>' 
-                : d.revenue >= 1200000000 
-                ? '<span class="chip bl uppercase font-bold" style="font-size:9px;">Đạt mục tiêu</span>' 
-                : '<span class="chip r uppercase font-bold" style="font-size:9px;">Cần nỗ lực bổ sung</span>';
-              return `
+            ${filteredData.map(d => `
                 <tr>
                   <td class="cell-bold">${d.month}</td>
                   <td style="text-align:right;" class="tmono font-bold text-slate-800">${fmtVND(d.revenue)}</td>
-                  <td style="text-align:right;" class="tmono">${d.wonDeals} deals thắng</td>
-                  <td style="text-align:right;" class="tmono text-emerald-600 font-bold">${fmtVND(Math.round(d.revenue / d.wonDeals))} / deal</td>
-                  <td>${statusLabel}</td>
+                  <td style="text-align:right;" class="tmono">${d.wonDeals} lead</td>
+                  <td style="text-align:right;" class="tmono text-emerald-600 font-bold">${d.wonDeals > 0 ? fmtVND(Math.round(d.revenue / d.wonDeals)) + ' / lead' : '—'}</td>
                 </tr>
-              `;
-            }).join('')}
+              `).join('')}
           </tbody>
         </table>
       </div>

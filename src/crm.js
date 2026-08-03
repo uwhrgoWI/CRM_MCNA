@@ -3,7 +3,7 @@
 
 import {
   USERS_DB, COMPANIES_DB, CONTACTS_DB, LEADS_DB, DEALS_DB, TASKS_DB,
-  ACTIVITIES_DB, QUOTES_DB, PRODUCTS_DB, TICKETS_DB, INVOICES_DB, REVENUE_DATA, NOTIFICATIONS_DB, AUDIT_LOG_DB,
+  ACTIVITIES_DB, QUOTES_DB, PRODUCTS_DB, TICKETS_DB, INVOICES_DB, NOTIFICATIONS_DB, AUDIT_LOG_DB,
   CALL_LOGS_DB, EMAIL_OUTBOX_DB, initDB
 } from './crm-database.js';
 
@@ -17,9 +17,9 @@ import {
   renderSuperAdminDashboard, renderSupportDashboard,
   renderMarketerIntakePage, renderSalesLeadsBoard,
   drawLeadsPage, renderPipelineKanban, renderTasksPage, renderQuotationsPage, drawQuoteBuilderInner,
-  renderCustomersPage, renderProductsPage, renderTicketsPage, drawTicketMessageThread, renderUsersPermissionsPage, renderSystemSettingsPage,
+  renderCustomersPage, renderTicketsPage, drawTicketMessageThread, renderUsersPermissionsPage, renderSystemSettingsPage,
   renderReportsPage, renderInvoicesPage, renderSalesToolkitPage, renderMcnaFunnelPage, renderNotificationsPage, esc, fmtVND,
-  maskPhone, maskEmail
+  maskPhone, maskEmail, computeMonthlyLeadStats
 } from './crm-templates.js';
 
 // Collision-proof record id generator. Length-based ids (`led-${arr.length+1}`)
@@ -47,7 +47,7 @@ let DEALS_TAB_STATE = 'kanban'; // Add dynamic subtab for unified Kanban/Deals L
 let TOOLKIT_TAB_STATE = 'planner'; // Add active subtab for Sales Toolkit
 let FILTER_STATE = { search: '', source: 'all', priority: 'all', leadType: 'b2c' };
 let SELECTED_TICKET_ID = null;
-let REPORT_FILTER_STATE = { range: '12', repId: 'all', growthExpect: 15 };
+let REPORT_FILTER_STATE = { range: '12', repId: 'all' };
 
 // Sales Toolkit persistent states
 let PLANNER_DB = [
@@ -122,7 +122,9 @@ let EMAIL_TEMPLATES = [
 ];
 
 const PERMISSIONS = {
-  superadmin: ['dashboard-superadmin', 'reports', 'leads', 'deals', 'pipeline', 'contacts', 'companies', 'products', 'quotes', 'invoices', 'tasks', 'activities', 'tickets', 'users', 'settings', 'profile', 'notifications', 'sales-toolkit', 'mcna-funnel', 'kpi-calls'],
+  // Admin/Director observes real Lead activity; the old manual Deals/Quotes/
+  // Invoices/Tasks/Products pipeline is retired (nobody wrote to it for real work).
+  superadmin: ['dashboard-superadmin', 'reports', 'leads', 'contacts', 'companies', 'tickets', 'users', 'settings', 'profile', 'notifications', 'sales-toolkit', 'mcna-funnel', 'kpi-calls'],
   // Marketers only do lead intake — everything else (reports/deals/pipeline/etc.) is Admin-only.
   manager: ['leads', 'profile', 'notifications'],
   // Sales only work their leads (call + one-tap status ticks) — no manual data entry modules.
@@ -142,7 +144,6 @@ const PAGE_TITLES = {
   'pipeline': 'Phễu Pipeline Kanban',
   'contacts': 'Mạng Lưới Khách Hàng (Contacts)',
   'companies': 'Hồ Sơ Doanh Nghiệp (Companies)',
-  'products': 'Danh Mục Giải Pháp & Sản Phẩm',
   'quotes': 'Bảng Báo Giá Khách Hàng',
   'invoices': 'Sổ Sách Hóa Đơn & Nợ Phải Thu',
   'tasks': 'Sổ Tay Nhiệm Vụ Hoạt Động',
@@ -230,30 +231,32 @@ function renderPageContent(pageId) {
 
   // Render specific layout snapshots based on page context
   if (pageId === 'dashboard-superadmin') {
-    mount.innerHTML = renderSuperAdminDashboard();
-    
+    mount.innerHTML = renderSuperAdminDashboard(SESSION);
+
     // Draw SVGs after mounted in the real DOM to resolve parent dimensions
     setTimeout(() => {
-      // Monthly revenue bar chart format mapping
-      const chartBarData = REVENUE_DATA.map(d => ({ label: d.month, value: d.revenue }));
+      // Monthly revenue bar chart — live from real "paid" leads, not seed data
+      const monthly = computeMonthlyLeadStats(12);
+      const chartBarData = monthly.map(d => ({ label: d.month, value: d.revenue }));
       svgBarChart(chartBarData, 'sa-bar-chart-container');
 
-      // Bezier leads converted line trends
-      const chartLineData = REVENUE_DATA.slice(6).map(d => ({ label: d.month, value: d.wonDeals }));
+      // Won-leads-per-month trend, last 6 months
+      const chartLineData = monthly.slice(6).map(d => ({ label: d.month, value: d.wonDeals }));
       svgLineChart(chartLineData, 'sa-line-chart-container');
 
-      // Stage Distribution donut segments
+      // Live lead status distribution
       const donutData = [
-        { label: 'Thương lượng', value: DEALS_DB.filter(d=>d.stage==='negotiation').length, color: 'var(--b400)' },
-        { label: 'Proposals', value: DEALS_DB.filter(d=>d.stage==='proposal').length, color: 'var(--p500)' },
-        { label: 'Đủ điều kiện', value: DEALS_DB.filter(d=>d.stage==='qualified').length, color: 'var(--amber)' },
-        { label: 'Won', value: DEALS_DB.filter(d=>d.stage==='closed_won').length, color: 'var(--green)' }
+        { label: 'Mới / chưa gọi', value: LEADS_DB.filter(l=>l.status==='new').length, color: 'var(--n400)' },
+        { label: 'Đã tiếp cận', value: LEADS_DB.filter(l=>l.status==='contacting').length, color: 'var(--b400)' },
+        { label: 'Đã báo giá', value: LEADS_DB.filter(l=>l.status==='proposal').length, color: 'var(--amber)' },
+        { label: 'Đợi chuyển khoản', value: LEADS_DB.filter(l=>l.status==='awaiting_payment').length, color: 'var(--p500)' },
+        { label: 'Đã chuyển khoản', value: LEADS_DB.filter(l=>l.status==='paid').length, color: 'var(--green)' }
       ];
       svgDonut(donutData, 'sa-donut-chart-container');
 
       setupSuperAdminEvents();
     }, 50);
-  } 
+  }
   else if (pageId === 'dashboard-support') {
     mount.innerHTML = renderSupportDashboard();
   }
@@ -311,10 +314,6 @@ function renderPageContent(pageId) {
     mount.innerHTML = renderCustomersPage(CUSTOMER_TAB_STATE);
     setupCustomersEvents();
   } 
-  else if (pageId === 'products') {
-    mount.innerHTML = renderProductsPage(PRODUCTS_DB);
-    setupProductsEventHandlers();
-  } 
   else if (pageId === 'tickets') {
     mount.innerHTML = renderTicketsPage(TICKETS_DB);
     setupTicketsPageEvents();
@@ -324,7 +323,7 @@ function renderPageContent(pageId) {
     // Draw SVGs after mounted in the real DOM to resolve parent dimensions
     setTimeout(() => {
       const rangeLimit = parseInt(REPORT_FILTER_STATE.range) || 12;
-      const filteredData = REVENUE_DATA.slice(-rangeLimit);
+      const filteredData = computeMonthlyLeadStats(rangeLimit, REPORT_FILTER_STATE.repId || 'all');
       const chartBarData = filteredData.map(d => ({ label: d.month, value: d.revenue }));
       svgBarChart(chartBarData, 'rpt-bar-chart-container');
       setupReportsEventHandlers();
@@ -1308,7 +1307,6 @@ function setupTicketsPageEvents() {
 function setupReportsEventHandlers() {
   const rangeSelect = document.getElementById('rpt-filter-range');
   const repSelect = document.getElementById('rpt-filter-rep');
-  const growthInput = document.getElementById('rpt-growth-expect');
   const submitBtn = document.getElementById('rpt-submit-filter-btn');
   const refreshBtn = document.getElementById('rpt-refresh-btn');
   const exportBtn = document.getElementById('rpt-export-excel-btn');
@@ -1317,7 +1315,6 @@ function setupReportsEventHandlers() {
     submitBtn.addEventListener('click', () => {
       REPORT_FILTER_STATE.range = rangeSelect.value;
       REPORT_FILTER_STATE.repId = repSelect.value;
-      REPORT_FILTER_STATE.growthExpect = parseInt(growthInput.value) || 15;
       toast('Đã lọc và cập nhật phân tích dòng tiền!', 'success');
       renderPageContent('reports');
     });
@@ -1869,12 +1866,6 @@ function openActivityCreatorForm() {
   });
 }
 
-function setupProductsEventHandlers() {
-  document.getElementById('products-toggle-creator-trigger-btn')?.addEventListener('click', () => {
-    openProductCreatorForm();
-  });
-}
-
 function setupInvoicesEventHandlers() {
   document.getElementById('invoices-quick-issue-btn')?.addEventListener('click', () => {
     openInvoiceCreatorForm();
@@ -1964,99 +1955,6 @@ function openInvoiceCreatorForm() {
     closeActiveModal();
     if (CUR_PAGE === 'invoices') {
       renderPageContent('invoices');
-    }
-  });
-}
-
-function openProductCreatorForm() {
-  const content = `
-    <div class="auth-body">
-      <div class="fg">
-        <label>Tên Sản phẩm / Giải pháp mới *</label>
-        <input type="text" id="m-prod-name" required placeholder="Aura AI CRM - Enterprise Edition" />
-      </div>
-      <div class="fr2">
-        <div class="fg">
-          <label>Mã sản phẩm (SKU) *</label>
-          <input type="text" id="m-prod-code" required placeholder="AURA-AI-ENT" />
-        </div>
-        <div class="fg">
-          <label>Nhóm danh mục *</label>
-          <select id="m-prod-cat">
-            <option value="Software">Bản quyền Phần mềm (SaaS)</option>
-            <option value="Hardware">Thiết bị phần cứng</option>
-            <option value="Service">Dịch vụ tích hợp</option>
-            <option value="Consult">Tư vấn / Đào tạo</option>
-          </select>
-        </div>
-      </div>
-      <div class="fr2">
-        <div class="fg">
-          <label>Đơn giá tiêu chuẩn *</label>
-          <input type="number" id="m-prod-price" required placeholder="120000000" />
-        </div>
-        <div class="fg">
-          <label>Số lượng kho ban đầu *</label>
-          <input type="number" id="m-prod-stock" required placeholder="99" />
-        </div>
-      </div>
-      <div class="fr2">
-        <div class="fg">
-          <label>Đơn vị tính *</label>
-          <input type="text" id="m-prod-unit" required placeholder="Gói/Năm" />
-        </div>
-        <div class="fg">
-          <label>Biểu tượng Emoji đại diện *</label>
-          <input type="text" id="m-prod-emoji" required placeholder="☁️" />
-        </div>
-      </div>
-      <div class="fg">
-        <label>Mô tả chi tiết giải pháp *</label>
-        <textarea id="m-prod-desc" rows="3" required placeholder="Hệ thống điều phối dữ liệu khách hàng đa kênh tích hợp máy trí tuệ nhân tạo dự đoán xu hướng chốt thương vụ sales..."></textarea>
-      </div>
-    </div>
-  `;
-
-  const btns = `
-    <button class="btn bl" onclick="window.crmApp.closeActiveModal()">Thoát</button>
-    <button class="btn pr" id="m-prod-save-btn">Đăng bán Sản phẩm</button>
-  `;
-
-  openModalElement('KHỞI TẠO SẢN PHẨM MỚI TRÊN KỆ HỆ SINH THÁI', content, btns);
-
-  document.getElementById('m-prod-save-btn')?.addEventListener('click', () => {
-    const name = document.getElementById('m-prod-name').value;
-    const code = document.getElementById('m-prod-code').value;
-    const category = document.getElementById('m-prod-cat').value;
-    const price = parseInt(document.getElementById('m-prod-price').value) || 0;
-    const stock = parseInt(document.getElementById('m-prod-stock').value) || 0;
-    const unit = document.getElementById('m-prod-unit').value;
-    const emoji = document.getElementById('m-prod-emoji').value;
-    const description = document.getElementById('m-prod-desc').value;
-
-    if (!name || !code || !price || !description) {
-      toast('Vui lòng nhập đầy đủ thông tin giải pháp!', 'error');
-      return;
-    }
-
-    const nProd = {
-      id: uid('prd'),
-      name,
-      code,
-      category,
-      price,
-      stock,
-      unit,
-      emoji,
-      description,
-      status: 'active'
-    };
-
-    PRODUCTS_DB.unshift(nProd);
-    toast('Đã niêm yết sản phẩm mới thành công!', 'success');
-    closeActiveModal();
-    if (CUR_PAGE === 'products') {
-      renderPageContent('products');
     }
   });
 }
@@ -2837,20 +2735,6 @@ window.crmApp = {
       ACTIVITIES_DB.splice(idx, 1);
       toast('Đã gỡ bỏ nhật ký hoạt động này!', 'warn');
       renderPageContent('tasks');
-    }
-  },
-  openProductDetailModal: (id) => {
-    const p = PRODUCTS_DB.find(prd => prd.id === id);
-    if (p) {
-      toast(`Sản phẩm: ${p.name} - SKU: ${p.code} - Giá: ${p.price.toLocaleString('vi-VN')} ₫`, 'info');
-    }
-  },
-  deleteProductDirect: (id) => {
-    const idx = PRODUCTS_DB.findIndex(p => p.id === id);
-    if (idx !== -1) {
-      PRODUCTS_DB.splice(idx, 1);
-      toast('Đã rút sản phẩm khỏi kệ chào bán!', 'warn');
-      renderPageContent('products');
     }
   },
   recordInvoicePayment: (id) => {
